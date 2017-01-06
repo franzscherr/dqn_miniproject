@@ -1,0 +1,96 @@
+#!/usr/bin/python
+# __________________________________________________________________________________________________
+# Fully connected network
+#
+
+import tensorflow as tf
+import numpy as np
+
+# __________________________________________________________________________________________________
+# FCPart is meant to represent the later fully connected layers in DQN
+#
+class FCPart:
+    def weight_variable(self, shape, name=None):
+        i_max = np.sqrt(6 / np.sum(shape))
+        i_min = -i_max
+        initial = tf.random_uniform(shape, i_min, i_max)
+        if name:
+            return tf.Variable(initial, name=name)
+        return tf.Variable(initial)
+
+    def bias_variable(self, shape, bias=0.1, name=None):
+        initial = tf.constant(bias, dtype=tf.float32, shape=shape)
+        if name:
+            return tf.Variable(initial, name=name)
+        return tf.Variable(initial)
+
+    def normalize(self, x):
+        mean = tf.reduce_mean(x)
+        t = x - mean
+        normalized = t / tf.reduce_mean(t ** 2)
+        return normalized
+
+    def preprocess_input(self, x):
+        if self.do_normalize:
+            y = self.normalize(x)
+        else:
+            return x
+        return y
+
+    def __init__(self, layer_sizes, do_normalize=False, last_part=True):
+        self.last_part = last_part
+        self.do_normalize = do_normalize
+        self.layer_sizes = layer_sizes
+
+    def add_to_graph(self, input_tensor):
+        shape = input_tensor.get_shape().as_list()
+
+        input_size = 1
+        for dim_size in shape[1:]:
+            input_size *= dim_size
+        
+        prev_layer = tf.reshape(input_tensor, [-1, input_size])
+        prev_size = input_size
+
+        # inner layers
+        for i in range(len(self.layer_sizes)):
+            with tf.name_scope('fc_{:d}'.format(i)):
+                layer_size = self.layer_sizes[i]
+
+                # set up weights
+                W = self.weight_variable([prev_size, layer_size], 'weights')
+                b = self.bias_variable([layer_size], 0.1, 'bias')
+
+                h = tf.matmul(prev_layer, W) + b
+
+                # activation (not for output)
+                if self.last_part or i != len(self.layer_sizes[i]) - 1:
+                    h = tf.nn.relu(h, name='activation')
+                    # h = tf.nn.tanh(h, name='activation')
+
+                    if self.do_normalize:
+                        gamma = tf.Variable(1.0, name='gamma')
+                        beta = tf.Variable(0.0, name='beta')
+
+                        batches = tf.unstack(h, axis=0)
+                        normalized_batches = []
+                        for batch in batches:
+                            mean = tf.reduce_mean(batch)
+                            batch = batch - mean
+                            normalized_batches.append(batch / tf.sqrt(tf.reduce_mean(batch ** 2)))
+
+                        h = tf.pack(normalized_batches) * gamma + beta
+
+                prev_size = layer_size
+                prev_layer = h
+        return prev_layer
+
+if __name__ == '__main__':
+    fcp = FCPart([10, 10, 5], True)
+
+    inp = tf.constant(1.0, shape=(1, 5, 5, 3))
+    q = fcp.add_to_graph(inp)
+
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+        print(sess.run(q))

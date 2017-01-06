@@ -34,7 +34,7 @@ class ConvolutionPart:
     def normalize(self, x):
         mean = tf.reduce_mean(x)
         t = x - mean
-        normalized = t / tf.reduce_mean(t ** 2)
+        normalized = t / tf.sqrt(tf.reduce_mean(t ** 2))
         return normalized
 
     def preprocess_input(self, x):
@@ -54,7 +54,7 @@ class ConvolutionPart:
             self.pooling_size[1:3] = pooling_size
         assert(len(filter_sizes) == len(n_filters))
 
-    def process_image(self, image_input):
+    def add_to_graph(self, image_input):
         # TODO: How to do normalization for convolution?
         # TODO: Different configurations, especially for PADDING
         # shape is batch_size x img_ x img_ x channels
@@ -68,16 +68,14 @@ class ConvolutionPart:
             with tf.name_scope('conv_{:d}'.format(i)):
                 f_size = self.filter_sizes[i]
                 f_n = self.n_filters[i]
-                w_name = 'weights'.format(i)
-                b_name = 'bias'.format(i)
 
                 # set up weights
-                W_conv = self.weight_variable([f_size, f_size, f_n_previous, f_n], w_name)
-                b_conv = self.bias_variable([f_n], b_name)
+                W_conv = self.weight_variable([f_size, f_size, f_n_previous, f_n], 'weights')
+                b_conv = self.bias_variable([f_n], 'bias')
 
                 # convolute and ReLU
                 h = tf.nn.relu(self.conv2d(prev_layer, W_conv) + b_conv, 
-                        name='activation'.format(i))
+                        name='activation')
                 if self.pooling_size:
                     h = tf.nn.max_pool(h, ksize=self.pooling_size, strides=self.pooling_size, padding='SAME')
                     img_size = img_size / np.array(self.pooling_size[1:3])
@@ -93,4 +91,4 @@ if __name__ == '__main__':
     vp = ConvolutionPart([5, 5], [32, 64], [2, 2])
 
     img = tf.constant(1.0, shape=[1, 64, 128, 3])
-    convout = vp.process_image(img)
+    convout = vp.add_to_graph(img)
