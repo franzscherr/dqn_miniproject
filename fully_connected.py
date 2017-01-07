@@ -6,24 +6,12 @@
 import tensorflow as tf
 import numpy as np
 
+from serializable_weights import SerializableWeights
+
 # __________________________________________________________________________________________________
 # FCPart is meant to represent the later fully connected layers in DQN
 #
-class FCPart:
-    def weight_variable(self, shape, name=None):
-        i_max = np.sqrt(6 / np.sum(shape))
-        i_min = -i_max
-        initial = tf.random_uniform(shape, i_min, i_max)
-        if name:
-            return tf.Variable(initial, name=name)
-        return tf.Variable(initial)
-
-    def bias_variable(self, shape, bias=0.1, name=None):
-        initial = tf.constant(bias, dtype=tf.float32, shape=shape)
-        if name:
-            return tf.Variable(initial, name=name)
-        return tf.Variable(initial)
-
+class FCPart(SerializableWeights):
     def normalize(self, x):
         mean = tf.reduce_mean(x)
         t = x - mean
@@ -37,7 +25,9 @@ class FCPart:
             return x
         return y
 
-    def __init__(self, layer_sizes, do_normalize=False, last_part=True):
+    def __init__(self, n_batch, layer_sizes, do_normalize=False, load_from=None, last_part=True):
+        super(FCPart, self).__init__(load_from)
+        self.n_batch = n_batch
         self.last_part = last_part
         self.do_normalize = do_normalize
         self.layer_sizes = layer_sizes

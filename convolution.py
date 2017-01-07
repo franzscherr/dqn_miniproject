@@ -6,30 +6,14 @@
 import tensorflow as tf
 import numpy as np
 
+from serializable_weights import SerializableWeights
+
 # __________________________________________________________________________________________________
 # ConvolutionPart is meant to represent the first layers that process the image input
 #
-class ConvolutionPart:
+class ConvolutionPart(SerializableWeights):
     def conv2d(self, x, W):
         return tf.nn.conv2d(x, W, strides=[1,1,1,1], padding='SAME')
-
-    def weight_variable(self, shape, name=None):
-        # TODO: NN SLIDES INITIALIZATION, is this correct for convolutional
-        # layers?
-        # PRO: m + n is input + output, which is exactly this
-        i_max = np.sqrt(6 / np.sum(shape))
-        i_min = -i_max
-        initial = tf.random_uniform(shape, i_min, i_max)
-        if name:
-            return tf.Variable(initial, name=name)
-        return tf.Variable(initial)
-
-    def bias_variable(self, shape, name):
-        # RELU aware - initialization
-        initial = tf.constant(0.1, shape=shape)
-        if name:
-            return tf.Variable(initial, name=name)
-        return tf.Variable(initial)
 
     def normalize(self, x):
         mean = tf.reduce_mean(x)
@@ -44,7 +28,9 @@ class ConvolutionPart:
             return x
         return y
 
-    def __init__(self, filter_sizes, n_filters, pooling_size=None):
+    def __init__(self, n_batch, filter_sizes, n_filters, pooling_size=None, load_from=None):
+        super(ConvolutionPart, self).__init__(load_from)
+        self.n_batch = n_batch
         self.do_normalize = False
         self.filter_sizes = filter_sizes
         self.n_filters = n_filters
@@ -71,7 +57,7 @@ class ConvolutionPart:
 
                 # set up weights
                 W_conv = self.weight_variable([f_size, f_size, f_n_previous, f_n], 'weights')
-                b_conv = self.bias_variable([f_n], 'bias')
+                b_conv = self.bias_variable([f_n], 0.1, 'bias')
 
                 # convolute and ReLU
                 h = tf.nn.relu(self.conv2d(prev_layer, W_conv) + b_conv, 
