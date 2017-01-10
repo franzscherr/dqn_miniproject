@@ -14,12 +14,12 @@ from model import Model
 # Learning parameters
 n_train_iterations      = 2000
 n_test_iterations       = 10
-n_batch                 = 8
+n_batch                 = 16
 update_frequency        = 10
 max_episode_length      = 200
 learning_rate           = 3e-3
 gamma                   = 0.999
-eps                     = 0.2
+eps                     = 0.1
 eps_decay               = 0.9999
 eps_min                 = 0.08
 print_interval          = 100
@@ -67,7 +67,7 @@ class SimpleModel(Model):
     def run_assign_weights(self, key, sess):
         self.fc_part.run_assign_weights(key, sess)
 
-model_args = ([20, 20, 20, n_actions], train_observation_shape)
+model_args = ([50, n_actions + 1], train_observation_shape)
 model = SimpleModel(*model_args)
 target_model = SimpleModel(*model_args)
 
@@ -120,12 +120,12 @@ def policy(q_values, eps):
     # q_values 1 x n_actions
     if np.random.rand() < eps:
         return np.random.randint(n_actions)
-    return np.argmax(q_values)
+    return np.argmax(q_values[:, :-1])
 
 # __________________________________________________________________________________________________
 # Train loop - Sample trajectories - Update Q-Function
 try:
-    experience = Experience(100)
+    experience = Experience(400)
     loss_list = []
     reward_list = []
     duration_list = []

@@ -36,14 +36,20 @@ class QLearner:
             self.reward_holder = tf.placeholder(dtype=tf.float32, shape=[self.n_batch], name='reward_holder')
             self.is_done_holder = tf.placeholder(dtype=tf.int32, shape=[self.n_batch], name='is_done_holder')
             is_done_float = tf.to_float(self.is_done_holder)
+            
+            value = self.q_out[:, -1]
+            value = tf.reshape(value, [-1, 1])
+            real_q = self.q_out[:, :-1] + value
 
-            y = self.reward_holder + self.gamma * tf.reduce_max(self.t_q_out, axis=1) * \
+            real_t_q = self.t_q_out[:, :-1] + tf.reshape(self.t_q_out[:, -1], [-1, 1])
+
+            y = self.reward_holder + self.gamma * tf.reduce_max(real_t_q, axis=1) * \
                     (1 - is_done_float)
             y_no_update = tf.stop_gradient(y)
 
             action_one_hot = tf.one_hot(self.action_holder, self.n_actions)
 
-            self.loss = tf.reduce_mean((y - tf.reduce_sum(self.q_out * action_one_hot, axis=1)) \
+            self.loss = tf.reduce_mean((y - tf.reduce_sum(real_q * action_one_hot, axis=1)) \
                     ** 2, name='loss')
             # TODO: Let main.py set up the optimization strategy?
 
