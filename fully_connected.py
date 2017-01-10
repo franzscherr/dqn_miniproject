@@ -48,8 +48,8 @@ class FCPart(SerializableWeights):
                 layer_size = self.layer_sizes[i]
 
                 # set up weights
-                W = self.weight_variable([prev_size, layer_size], 'weights')
-                b = self.bias_variable([layer_size], 0.1, 'bias')
+                W = self.weight_variable([prev_size, layer_size], 'fc_weights{}'.format(i))
+                b = self.bias_variable([layer_size], 0.1, 'fc_bias{}'.format(i))
 
                 h = tf.matmul(prev_layer, W) + b
 

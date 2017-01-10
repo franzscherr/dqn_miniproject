@@ -11,42 +11,26 @@ from fully_connected import FCPart
 
 # __________________________________________________________________________________________________
 class QLearner:
-    def __init__(self, n_actions, input_shape=None, gamma=0.99, load_from=None):
-        conv_size = [5, 5]
-        filter_sizes = [10, 10]
-        pool_size = [2, 2]
-        conv_init_arg = (input_shape[0], conv_size, filter_sizes, pool_size, load_from)
-
-        layer_sizes = [80, 20, n_actions]
-        do_normalization = False
-        fc_init_arg = (input_shape[0], layer_sizes, do_normalization, load_from)
-
+    def __init__(self, n_actions, model, target_model, input_shape=None, gamma=0.99):
         self.gamma = gamma
         self.n_batch = input_shape[0]
-
-        self.conv_part = ConvolutionPart(*conv_init_arg)
-        self.fc_part = FCPart(*fc_init_arg)
         self.n_actions = n_actions
         self.input_shape = input_shape
         self.input_shape[0] = None
-
-        # Target Q function
-        self.t_conv_part = ConvolutionPart(*conv_init_arg)
-        self.t_fc_part = FCPart(*fc_init_arg)
+        self.model = model
+        self.target_model = target_model
 
     def add_to_graph(self):
         with tf.name_scope('q'):
             self.state_holder = tf.placeholder(dtype=tf.float32, shape=self.input_shape,
                     name='input')
             self.action_holder = tf.placeholder(dtype=tf.int32, shape=[self.n_batch], name='action')
-            self.conv_out = self.conv_part.add_to_graph(self.state_holder)
-            self.q_out = self.fc_part.add_to_graph(self.conv_out)
+            self.q_out = self.model.add_to_graph(self.state_holder)
 
         with tf.name_scope('target_q'):
             self.next_state_holder = \
                     tf.placeholder(dtype=tf.float32, shape=self.input_shape, name='input')
-            self.t_conv_out = self.t_conv_part.add_to_graph(self.next_state_holder)
-            self.t_q_out = self.t_fc_part.add_to_graph(self.t_conv_out)
+            self.t_q_out = self.target_model.add_to_graph(self.next_state_holder)
 
         with tf.name_scope('train_q'):
             self.reward_holder = tf.placeholder(dtype=tf.float32, shape=[self.n_batch], name='reward_holder')
@@ -64,19 +48,10 @@ class QLearner:
             # TODO: Let main.py set up the optimization strategy?
 
         with tf.name_scope('target_update'):
-            self.t_conv_part.add_assign_weights('ref1', self.conv_part)
-            self.t_fc_part.add_assign_weights('ref1', self.fc_part)
+            self.target_model.add_assign_weights('ref1', self.model)
 
     def run_target_q_update(self, sess):
-        self.t_conv_part.run_assign_weights('ref1', sess)
-        self.t_fc_part.run_assign_weights('ref1', sess)
+        self.target_model.run_assign_weights('ref1', sess)
 
     def q_values(self, state, sess):
         return sess.run(self.q_out, feed_dict={self.state_holder: state})
-
-    def save_weights(self, file_name, sess):
-        f = file_name
-        if type(file_name) == str:
-            f = open(file_name, 'wb')
-        self.conv_part.save_weights(f, sess)
-        self.fc_part.save_weights(f, sess)

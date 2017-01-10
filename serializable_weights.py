@@ -20,7 +20,7 @@ class SerializableWeights:
         for assign_op in self.assign_ops[key]:
             sess.run(assign_op)
 
-    def save_weights(self, file_object, sess):
+    def saveable_weights_dict(self, file_object, sess):
         variable_dict = {}
         for weight in self.weight_list + self.bias_list:
             key = weight.name
@@ -30,7 +30,7 @@ class SerializableWeights:
                 key = key[:key.index(':')]
             variable_dict[key] = sess.run(weight)
         # save
-        np.savez_compressed(file_object, **variable_dict)
+        return variable_dict
 
     def weight_variable(self, shape, name):
         # TODO: NN SLIDES INITIALIZATION, is this correct for convolutional
@@ -42,7 +42,7 @@ class SerializableWeights:
             initial = tf.constant(self.loaded[name], shape=shape)
         except:
             if self.loaded:
-                print('Warning: load_from given but unable to load')
+                print('Warning: load_from given but unable to load {}'.format(name))
             initial = tf.random_uniform(shape, i_min, i_max)
         var = tf.Variable(initial, name=name)
         self.weight_list.append(var)
@@ -54,7 +54,7 @@ class SerializableWeights:
             initial = tf.constant(self.loaded[name], shape=shape)
         except:
             if self.loaded:
-                print('Warning: load_from given but unable to load')
+                print('Warning: load_from given but unable to load {}'.format(name))
             initial = tf.constant(value, shape=shape)
         bias = tf.Variable(initial, name=name)
         self.bias_list.append(bias)

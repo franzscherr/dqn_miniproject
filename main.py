@@ -7,30 +7,33 @@ import numpy as np
 import gym
 
 from q_learner import QLearner
+from fully_connected import FCPart
+from model import Model
 
 # __________________________________________________________________________________________________
 # Learning parameters
-n_train_iterations      = 200
+n_train_iterations      = 2000
 n_test_iterations       = 10
 n_batch                 = 8
-update_frequency        = 100
-max_episode_length      = 1000
+update_frequency        = 10
+max_episode_length      = 200
 learning_rate           = 3e-3
 gamma                   = 0.999
 eps                     = 0.2
 eps_decay               = 0.9999
 eps_min                 = 0.08
-print_interval          = 2
+print_interval          = 100
 
 # __________________________________________________________________________________________________
 # Environment to play
-env = gym.make('Breakout-v0')
+# env = gym.make('Pong-v0')
+env = gym.make('CartPole-v0')
 
 n_actions = env.action_space.n
 train_observation_shape = list(env.observation_space.shape)
 
 # For first simple testing, input is two adjacent frames
-train_observation_shape[-1] *= 2
+# train_observation_shape[-1] = 2
 train_observation_shape.insert(0, n_batch)
 
 observation_shape = train_observation_shape[:]
@@ -38,9 +41,37 @@ observation_shape[0] = 1
 
 # __________________________________________________________________________________________________
 # Model
-file_name = 'saved_weights.npz'
+file_name = 'pong.npz'
 
-q_learner = QLearner(n_actions, train_observation_shape, gamma, file_name)
+# model_args = ([5,5], [4,4], [4,4], [30, n_actions], train_observation_shape, False, file_name)
+# model = ConvolutionalModel(*model_args)
+# target_model = ConvolutionalModel(*model_args)
+
+class SimpleModel(Model):
+    def __init__(self, fc_sizes, input_shape=None):
+        fc_init_arg = (input_shape[0], fc_sizes, False)
+
+        self.n_batch = input_shape[0]
+
+        self.fc_part = FCPart(*fc_init_arg)
+        self.input_shape = input_shape
+        self.input_shape[0] = None
+
+    def add_to_graph(self, input_tensor):
+        q_out = self.fc_part.add_to_graph(input_tensor)
+        return q_out
+
+    def add_assign_weights(self, key, rhs):
+        self.fc_part.add_assign_weights(key, rhs.fc_part)
+
+    def run_assign_weights(self, key, sess):
+        self.fc_part.run_assign_weights(key, sess)
+
+model_args = ([20, 20, 20, n_actions], train_observation_shape)
+model = SimpleModel(*model_args)
+target_model = SimpleModel(*model_args)
+
+q_learner = QLearner(n_actions, model, target_model, train_observation_shape, gamma)
 q_learner.add_to_graph()
 
 train_step = tf.train.AdamOptimizer(learning_rate).minimize(q_learner.loss)
@@ -76,7 +107,14 @@ class Experience:
         return map(list, zip(*samples))
 
 def preprocess(previous, current):
-    return np.concatenate([previous, current], axis=(len(previous.shape) - 1))
+    # a = np.sum(previous, axis=2, keepdims=True)
+    # b = np.sum(current, axis=2, keepdims=True)
+    # a = (a - np.mean(a))
+    # b = (b - np.mean(b))
+    # a = a / np.max(a)
+    # b = b / np.max(b)
+    # return np.concatenate([a, b], axis=(len(previous.shape) - 1))
+    return current
 
 def policy(q_values, eps):
     # q_values 1 x n_actions
@@ -88,6 +126,9 @@ def policy(q_values, eps):
 # Train loop - Sample trajectories - Update Q-Function
 try:
     experience = Experience(100)
+    loss_list = []
+    reward_list = []
+    duration_list = []
 
     for i in range(n_train_iterations):
         observation = env.reset()
@@ -95,6 +136,7 @@ try:
         state = preprocess(prev_observation, observation)
         total_loss = 0
         total_reward = 0
+        total_action = 0
 
         for j in range(max_episode_length):
             if eps > eps_min:
@@ -102,6 +144,7 @@ try:
 
             q_values = q_learner.q_values(np.reshape(state, observation_shape), sess)
             a_t = policy(q_values, eps)
+            total_action += a_t
 
             prev_observation = observation
 
@@ -133,12 +176,23 @@ try:
 
             if done:
                 break
+        total_loss /= j
+        total_action /= j
+        reward_list.append(total_reward)
+        duration_list.append(j)
+        loss_list.append(total_loss)
         if i % print_interval == 0:
-            print('average loss in trajectory {:5d}: {:10g} | reward: {}'
-                    .format(i, total_loss / print_interval, total_reward))
+            print('loss {:8g} +/- {:4.2f} | reward {:8.2f} +/- {:4.2f} | duration {:5f} +/- {:3f}'
+                    .format(np.mean(loss_list), np.sqrt(np.var(loss_list)), np.mean(reward_list),
+                        np.sqrt(np.var(reward_list)), np.mean(duration_list), np.sqrt(np.var(duration_list))))
+            # print('average loss in trajectory {:5d}: {:10g} | reward: {} | avg action: {}'
+                    # .format(i, total_loss, total_reward, total_action))
+            loss_list = []
+            duration_list = []
+            reward_list = []
 except KeyboardInterrupt:
     # save parameters
-    if file_name:
+    if file_name and False:
         with open(file_name, 'wb') as f:
             q_learner.save_weights(f, sess)
 

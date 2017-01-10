@@ -56,8 +56,8 @@ class ConvolutionPart(SerializableWeights):
                 f_n = self.n_filters[i]
 
                 # set up weights
-                W_conv = self.weight_variable([f_size, f_size, f_n_previous, f_n], 'weights')
-                b_conv = self.bias_variable([f_n], 0.1, 'bias')
+                W_conv = self.weight_variable([f_size, f_size, f_n_previous, f_n], 'conv_weights{}'.format(i))
+                b_conv = self.bias_variable([f_n], 0.1, 'conv_bias{}'.format(i))
 
                 # convolute and ReLU
                 h = tf.nn.relu(self.conv2d(prev_layer, W_conv) + b_conv, 
