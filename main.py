@@ -67,7 +67,7 @@ class SimpleModel(Model):
     def run_assign_weights(self, key, sess):
         self.fc_part.run_assign_weights(key, sess)
 
-model_args = ([50, n_actions + 1], train_observation_shape)
+model_args = ([30, n_actions + 1], train_observation_shape)
 model = SimpleModel(*model_args)
 target_model = SimpleModel(*model_args)
 

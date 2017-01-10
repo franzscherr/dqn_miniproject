@@ -54,22 +54,19 @@ class FCPart(SerializableWeights):
                 h = tf.matmul(prev_layer, W) + b
 
                 # activation (not for output)
-                if self.last_part or i != len(self.layer_sizes[i]) - 1:
-                    h = tf.nn.relu(h, name='activation')
-                    # h = tf.nn.tanh(h, name='activation')
+                if not self.last_part or i != len(self.layer_sizes) - 1:
+                    # h = tf.nn.relu(h, name='activation')
+                    h = tf.nn.tanh(h, name='activation')
 
                     if self.do_normalize:
                         gamma = tf.Variable(1.0, name='gamma')
-                        beta = tf.Variable(0.0, name='beta')
+                        beta = tf.Variable(tf.zeros([layer_size]), name='beta')
 
-                        batches = tf.unstack(h, axis=0)
-                        normalized_batches = []
-                        for batch in batches:
-                            mean = tf.reduce_mean(batch)
-                            batch = batch - mean
-                            normalized_batches.append(batch / tf.sqrt(tf.reduce_mean(batch ** 2)))
+                        mean = tf.reduce_mean(h, axis=1, keep_dims=True)
+                        h = h - mean
+                        h = h / tf.sqrt(tf.reduce_mean(h ** 2, axis=1, keep_dims=True))
 
-                        h = tf.pack(normalized_batches) * gamma + beta
+                        h = gamma * h + beta
 
                 prev_size = layer_size
                 prev_layer = h
