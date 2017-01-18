@@ -60,7 +60,7 @@ class FCPart(SerializableWeights):
 
                     if self.do_normalize:
                         gamma = tf.Variable(1.0, name='gamma')
-                        beta = tf.Variable(tf.zeros([layer_size]), name='beta')
+                        beta = tf.Variable(0.0, name='beta')
 
                         mean = tf.reduce_mean(h, axis=1, keep_dims=True)
                         h = h - mean
