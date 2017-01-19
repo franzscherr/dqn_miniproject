@@ -20,7 +20,7 @@ n_test_iterations       = 4
 n_batch                 = 32
 update_frequency        = 32
 max_episode_length      = 5000
-learning_rate           = 0.002
+learning_rate           = 0.02
 learning_rate_decay     = 0.993
 learning_rate_min       = 4e-4
 gamma                   = 0.98
@@ -52,7 +52,7 @@ observation_shape[0] = 1
 
 # __________________________________________________________________________________________________
 # Model
-#file_name = 'pong_prepro.npz'
+file_name = 'pong_prepro.npz'
 
 # model_args = ([5,5], [4,4], [4,4], [30, n_actions], train_observation_shape, False, file_name)
 # model = ConvolutionalModel(*model_args)
@@ -258,19 +258,19 @@ try:
             #print(appendedObservation.shape)
             #print(np.reshape(sess.run(q_out, feed_dict={environmentObservationPlaceHolder:appendedObservation}), -1))
 
-            #while True:
-            networkOutput = np.reshape(sess.run(q_out, feed_dict={environmentObservationPlaceHolder:appendedObservation}), -1)
+            for z in range(0, 10):
+                    networkOutput = np.reshape(sess.run(q_out, feed_dict={environmentObservationPlaceHolder:appendedObservation}), -1)
 
-            
-            loss = sess.run(error, feed_dict={expectedFeatureOutput:new_state,
-environmentObservationPlaceHolder:appendedObservation})
-            total_loss += loss
+                    
+                    loss = sess.run(error, feed_dict={expectedFeatureOutput:new_state,
+        environmentObservationPlaceHolder:appendedObservation})
+                    total_loss += loss
 
-            sess.run(train, feed_dict={expectedFeatureOutput:new_state,
-environmentObservationPlaceHolder:appendedObservation})
+                    sess.run(train, feed_dict={expectedFeatureOutput:new_state,
+        environmentObservationPlaceHolder:appendedObservation})
 
-            #print(total_loss)
-            state = new_state
+                    #print(total_loss)
+                    state = new_state
 
             print('loss {:8g}'.format(loss))
 
