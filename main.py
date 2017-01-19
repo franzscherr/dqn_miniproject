@@ -6,6 +6,7 @@ import pdb
 import tensorflow as tf
 import numpy as np
 import gym
+import sys
 
 from q_learner import QLearner
 from fully_connected import FCPart
@@ -52,7 +53,7 @@ observation_shape[0] = 1
 
 # __________________________________________________________________________________________________
 # Model
-file_name = 'pong_prepro.npz'
+file_name = 'pong_prepro' + str(sys.argv[1]) + '.npz'
 
 # model_args = ([5,5], [4,4], [4,4], [30, n_actions], train_observation_shape, False, file_name)
 # model = ConvolutionalModel(*model_args)
@@ -112,12 +113,12 @@ target_model_args = ([30, 60, n_actions + 1], keep_holder, train_observation_sha
 
 #Use a convolutional model
 
-environmentObservationPlaceHolder = tf.placeholder(dtype=tf.float32, shape=(1, 210, 160, 6))
-expectedFeatureOutput = tf.placeholder(dtype=tf.float32, shape=(6))
-model_args = ([4, 4], [60, 30], (2, 2), [20, 6])
+environmentObservationPlaceHolder = tf.placeholder(dtype=tf.float32, shape=(n_batch, 210, 160, 6))
+expectedFeatureOutput = tf.placeholder(dtype=tf.float32, shape=(n_batch, 6))
+model_args = (n_batch, [4, 4], [60, 30], (2, 2), [20, 6])
 model = ConvolutionalModel(*model_args)
 q_out = model.add_to_graph(environmentObservationPlaceHolder)
-error = tf.reduce_sum((expectedFeatureOutput - tf.reshape(q_out, [-1])) ** 2)
+error = tf.reduce_sum((expectedFeatureOutput - q_out) ** 2)
 train = tf.train.AdamOptimizer(learning_rate).minimize(error)
 #train = expectedFeatureOutput - tf.reshape(q_out, [-1])
 
@@ -144,24 +145,26 @@ sess.run(tf.global_variables_initializer())
 # TODO: Make this entirely in tensorflow
 #import random
 
-#class Experience:
-#    def __init__(self, capacity=100):
-#        self.experience = []
-#        self.capacity = capacity
+class Experience:
+    def __init__(self, capacity=1000):
+        self.experience = []
+        self.capacity = capacity
 
-#    def add(self, transition):
-#        if len(self.experience) >= self.capacity:
-#            self.experience.pop(np.random.randint(self.capacity))
-#        self.experience.append(transition)
+    def add(self, transition):
+        if len(self.experience) >= self.capacity:
+            self.experience.pop(np.random.randint(self.capacity))
+        self.experience.append(transition)
 
-#    def sample(self):
-#        return random.choice(self.experience)
+    def sample(self):
+        index = np.random.randint(len(self.experience))
+        return self.experience[index]
+        #return np.random.choice(self.experience)
 
-#    def sample_batch(self, num):
-#        samples = []
-#        for i in range(num):
-#            samples.append(self.sample())
-#        return map(list, zip(*samples))
+    def sample_batch(self, num):
+        samples = []
+        for i in range(num):
+            samples.append(self.sample())
+        return map(list, zip(*samples))
 
 #def preprocess(previous, current):
     # a = np.sum(previous, axis=2, keepdims=True)
@@ -191,7 +194,7 @@ sess.run(tf.global_variables_initializer())
 # __________________________________________________________________________________________________
 # Train loop - Sample trajectories - Update Q-Function
 try:
-    #experience = Experience(5000)
+    experience = Experience(5000)
     loss_list = []
     reward_list = []
     duration_list = []
@@ -235,10 +238,9 @@ try:
             #print(prev_observation)
             new_state = prepro(observation, prev_observation)
 
-            #experience.add(tuple([state, a_t, reward, new_state, done]))
+            experience.add(tuple([observation, prev_observation, new_state]))
 
-            #state_batch, action_batch, reward_batch, next_state_batch, is_done_batch = \
-            #        experience.sample_batch(n_batch)
+            oberservationBatch, prev_observationBatch, new_stateBatch = experience.sample_batch(n_batch)
 
             # Needs to be improved, suggests the training of this sample batch
             #_, loss = sess.run([train_step, q_learner.loss], feed_dict={
@@ -252,27 +254,31 @@ try:
             
             #print(new_state)
             #print([observation, prev_observation].shape)
-            observationReshape = np.reshape(observation, (1, 210, 160, 3))
-            prev_observationReshape = np.reshape(prev_observation, (1, 210, 160, 3))
+            observationReshape = np.reshape(oberservationBatch, (n_batch, 210, 160, 3))
+            prev_observationReshape = np.reshape(prev_observationBatch, (n_batch, 210, 160, 3))
             appendedObservation = np.append(observationReshape, prev_observationReshape, axis=3)
             #print(appendedObservation.shape)
             #print(np.reshape(sess.run(q_out, feed_dict={environmentObservationPlaceHolder:appendedObservation}), -1))
 
-            for z in range(0, 10):
-                    networkOutput = np.reshape(sess.run(q_out, feed_dict={environmentObservationPlaceHolder:appendedObservation}), -1)
+            #for z in range(0, 10):
+            networkOutput = np.reshape(sess.run(q_out, feed_dict={environmentObservationPlaceHolder:appendedObservation}), -1)
 
-                    
-                    loss = sess.run(error, feed_dict={expectedFeatureOutput:new_state,
-        environmentObservationPlaceHolder:appendedObservation})
-                    total_loss += loss
+            
+            loss = sess.run(error, feed_dict={expectedFeatureOutput:new_stateBatch,
+environmentObservationPlaceHolder:appendedObservation})
+            total_loss += loss
 
-                    sess.run(train, feed_dict={expectedFeatureOutput:new_state,
-        environmentObservationPlaceHolder:appendedObservation})
+            sess.run(train, feed_dict={expectedFeatureOutput:new_stateBatch,
+environmentObservationPlaceHolder:appendedObservation})
 
-                    #print(total_loss)
-                    state = new_state
+            #print(total_loss)
+            state = new_state
 
             print('loss {:8g}'.format(loss))
+            
+            if file_name and (j % 100) == 0:
+                with open(file_name, 'wb') as f:
+                    model.save_weights(f, sess)
 
             #if (i + j) % update_frequency == 0:
                 # update target Q function weights

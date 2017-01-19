@@ -1,13 +1,14 @@
 from model import Model
 from convolution import ConvolutionPart
 from fully_connected import FCPart
+import numpy as np
 
 class ConvolutionalModel(Model):
-    def __init__(self, conv_sizes, filter_sizes, pool_size, fc_sizes, input_shape=None, do_normalization=False, load_from=None):
-        conv_init_arg = (1, conv_sizes, filter_sizes, pool_size, load_from)
-        fc_init_arg = (1, fc_sizes, do_normalization, load_from)
+    def __init__(self, batchSize, conv_sizes, filter_sizes, pool_size, fc_sizes, input_shape=None, do_normalization=False, load_from=None):
+        conv_init_arg = (batchSize, conv_sizes, filter_sizes, pool_size, load_from)
+        fc_init_arg = (batchSize, fc_sizes, do_normalization, load_from)
 
-        self.n_batch = 1
+        self.n_batch = batchSize
 
         self.conv_part = ConvolutionPart(*conv_init_arg)
         self.fc_part = FCPart(*fc_init_arg)
