@@ -14,17 +14,17 @@ from model import Model
 # Learning parameters
 n_train_iterations      = 50
 n_test_iterations       = 10
-n_batch                 = 16
-update_frequency        = 6
+n_batch                 = 20
+update_frequency        = 9
 max_episode_length      = 200
-learning_rate           = 9e-3
-learning_rate_decay     = 0.9
-learning_rate_min       = 4e-3
+learning_rate           = 3e-3
+learning_rate_decay     = 0.95
+learning_rate_min       = 1e-3
 gamma                   = 0.99
 eps                     = 0.9
 eps_decay               = 0.85
-eps_min                 = 0.01
-print_interval          = 10
+eps_min                 = 0.1
+print_interval          = 5
 
 # __________________________________________________________________________________________________
 # Environment to play
@@ -69,16 +69,16 @@ class SimpleModel(Model):
     def run_assign_weights(self, key, sess):
         self.fc_part.run_assign_weights(key, sess)
 
-model_args = ([20, 20, n_actions + 1], train_observation_shape)
+model_args = ([30, n_actions + 1], train_observation_shape)
 model = SimpleModel(*model_args)
 target_model = SimpleModel(*model_args)
 
 q_learner = QLearner(n_actions, model, target_model, train_observation_shape, gamma)
 q_learner.add_to_graph()
 
-# train_step = tf.train.AdamOptimizer(learning_rate).minimize(q_learner.loss)
+train_step = tf.train.AdamOptimizer(learning_rate).minimize(q_learner.loss)
 learning_rate_holder = tf.placeholder(dtype=tf.float32)
-train_step = tf.train.GradientDescentOptimizer(learning_rate_holder).minimize(q_learner.loss)
+# train_step = tf.train.GradientDescentOptimizer(learning_rate_holder).minimize(q_learner.loss)
 
 # __________________________________________________________________________________________________
 # sess = tf.Session('grpc://10.0.0.6:49354')
