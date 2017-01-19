@@ -1,20 +1,21 @@
-
+from model import Model
+from convolution import ConvolutionPart
+from fully_connected import FCPart
 
 class ConvolutionalModel(Model):
     def __init__(self, conv_sizes, filter_sizes, pool_size, fc_sizes, input_shape=None, do_normalization=False, load_from=None):
-        conv_init_arg = (input_shape[0], conv_sizes, filter_sizes, pool_size, load_from)
-        fc_init_arg = (input_shape[0], fc_sizes, do_normalization, load_from)
+        conv_init_arg = (1, conv_sizes, filter_sizes, pool_size, load_from)
+        fc_init_arg = (1, fc_sizes, do_normalization, load_from)
 
-        self.n_batch = input_shape[0]
+        self.n_batch = 1
 
         self.conv_part = ConvolutionPart(*conv_init_arg)
         self.fc_part = FCPart(*fc_init_arg)
         self.input_shape = input_shape
-        self.input_shape[0] = None
 
     def add_to_graph(self, input_tensor):
         conv_out = self.conv_part.add_to_graph(input_tensor)
-        q_out = self.fc_part.add_to_graph(self.conv_out)
+        q_out = self.fc_part.add_to_graph(conv_out)
         return q_out
 
     def add_assign_weights(self, key, rhs):

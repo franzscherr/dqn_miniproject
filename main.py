@@ -11,6 +11,7 @@ from q_learner import QLearner
 from fully_connected import FCPart
 from model import Model
 from pong_tools import prepro
+from convolutional_model import ConvolutionalModel
 
 # __________________________________________________________________________________________________
 # Learning parameters
@@ -19,7 +20,7 @@ n_test_iterations       = 4
 n_batch                 = 32
 update_frequency        = 32
 max_episode_length      = 5000
-learning_rate           = 0.020
+learning_rate           = 0.002
 learning_rate_decay     = 0.993
 learning_rate_min       = 4e-4
 gamma                   = 0.98
@@ -51,7 +52,7 @@ observation_shape[0] = 1
 
 # __________________________________________________________________________________________________
 # Model
-file_name = 'pong_prepro.npz'
+#file_name = 'pong_prepro.npz'
 
 # model_args = ([5,5], [4,4], [4,4], [30, n_actions], train_observation_shape, False, file_name)
 # model = ConvolutionalModel(*model_args)
@@ -109,16 +110,27 @@ keep_holder = tf.placeholder_with_default(1.0, shape=None)
 model_args = ([30, 60, n_actions + 1], keep_holder, train_observation_shape)
 target_model_args = ([30, 60, n_actions + 1], keep_holder, train_observation_shape)
 
+#Use a convolutional model
+
+environmentObservationPlaceHolder = tf.placeholder(dtype=tf.float32, shape=(1, 210, 160, 6))
+expectedFeatureOutput = tf.placeholder(dtype=tf.float32, shape=(6))
+model_args = ([4, 4], [60, 30], (2, 2), [20, 6])
+model = ConvolutionalModel(*model_args)
+q_out = model.add_to_graph(environmentObservationPlaceHolder)
+error = tf.reduce_sum((expectedFeatureOutput - tf.reshape(q_out, [-1])) ** 2)
+train = tf.train.AdamOptimizer(learning_rate).minimize(error)
+#train = expectedFeatureOutput - tf.reshape(q_out, [-1])
+
 # model = SimpleModel(*model_args)
 # target_model = SimpleModel(*model_args)
-model = DropoutModel(*model_args)
-target_model = DropoutModel(*target_model_args)
+#model = DropoutModel(*model_args)
+#target_model = DropoutModel(*target_model_args)
 
-q_learner = QLearner(n_actions, model, target_model, train_observation_shape, gamma)
-q_learner.add_to_graph()
+#q_learner = QLearner(n_actions, model, target_model, train_observation_shape, gamma)
+#q_learner.add_to_graph()
 
-train_step = tf.train.AdamOptimizer(learning_rate).minimize(q_learner.loss)
-learning_rate_holder = tf.placeholder(dtype=tf.float32)
+#train_step = tf.train.AdamOptimizer(learning_rate).minimize(q_learner.loss)
+#learning_rate_holder = tf.placeholder(dtype=tf.float32)
 # train_step = tf.train.GradientDescentOptimizer(learning_rate_holder).minimize(q_learner.loss)
 
 # __________________________________________________________________________________________________
@@ -130,28 +142,28 @@ sess.run(tf.global_variables_initializer())
 # __________________________________________________________________________________________________
 # Experience handling
 # TODO: Make this entirely in tensorflow
-import random
+#import random
 
-class Experience:
-    def __init__(self, capacity=100):
-        self.experience = []
-        self.capacity = capacity
+#class Experience:
+#    def __init__(self, capacity=100):
+#        self.experience = []
+#        self.capacity = capacity
 
-    def add(self, transition):
-        if len(self.experience) >= self.capacity:
-            self.experience.pop(np.random.randint(self.capacity))
-        self.experience.append(transition)
+#    def add(self, transition):
+#        if len(self.experience) >= self.capacity:
+#            self.experience.pop(np.random.randint(self.capacity))
+#        self.experience.append(transition)
 
-    def sample(self):
-        return random.choice(self.experience)
+#    def sample(self):
+#        return random.choice(self.experience)
 
-    def sample_batch(self, num):
-        samples = []
-        for i in range(num):
-            samples.append(self.sample())
-        return map(list, zip(*samples))
+#    def sample_batch(self, num):
+#        samples = []
+#        for i in range(num):
+#            samples.append(self.sample())
+#        return map(list, zip(*samples))
 
-def preprocess(previous, current):
+#def preprocess(previous, current):
     # a = np.sum(previous, axis=2, keepdims=True)
     # b = np.sum(current, axis=2, keepdims=True)
     # a = (a - np.mean(a))
@@ -159,37 +171,38 @@ def preprocess(previous, current):
     # a = a / np.max(a)
     # b = b / np.max(b)
     # return np.concatenate([a, b], axis=(len(previous.shape) - 1))
-    return current
+#    return current
 
-def policy(q_values, strategy='epsgreedy', **kwargs):
-    # q_values 1 x n_actions
-    if strategy == 'epsgreedy':
-        eps = kwargs.get('eps', 0.1)
-        if np.random.rand() < eps:
-            return np.random.randint(n_actions)
-        return np.argmax(q_values[:, :-1])
-    elif strategy == 'boltzmann':
-        temperature = kwargs.get('temperature', 1.0)
-        e = np.exp(q_values[0, :-1] / temperature)
-        dist = e / np.sum(e)
-        return np.random.choice(n_actions, p=dist)
-    else:
-        return np.random.randint(n_actions)
+#def policy(q_values, strategy='epsgreedy', **kwargs):
+#    # q_values 1 x n_actions
+#    if strategy == 'epsgreedy':
+#        eps = kwargs.get('eps', 0.1)
+#        if np.random.rand() < eps:
+#            return np.random.randint(n_actions)
+#        return np.argmax(q_values[:, :-1])
+#    elif strategy == 'boltzmann':
+#        temperature = kwargs.get('temperature', 1.0)
+#        e = np.exp(q_values[0, :-1] / temperature)
+#        dist = e / np.sum(e)
+#        return np.random.choice(n_actions, p=dist)
+#    else:
+#        return np.random.randint(n_actions)
 
 # __________________________________________________________________________________________________
 # Train loop - Sample trajectories - Update Q-Function
 try:
-    experience = Experience(5000)
+    #experience = Experience(5000)
     loss_list = []
     reward_list = []
     duration_list = []
 
-    keep_prob = keep_prob_begin
-    temperature = temperature_begin
+    #keep_prob = keep_prob_begin
+    #temperature = temperature_begin
 
     for i in range(n_train_iterations):
         observation = env.reset()
         prev_observation = observation
+
         # state = preprocess(prev_observation, observation)
         state = prepro(observation, prev_observation)
         total_loss = 0
@@ -197,66 +210,93 @@ try:
         total_action = 0
 
         for j in range(max_episode_length):
-            if eps > eps_min:
-                eps *= eps_decay
 
-            if learning_rate > learning_rate_min:
-                learning_rate *= learning_rate_decay
+	    #Use the preprocessing step as a supervised output for the cnn
+	
 
-            q_values = q_learner.q_values(np.reshape(state, observation_shape), sess)
+            #if eps > eps_min:
+            #    eps *= eps_decay
+
+            #if learning_rate > learning_rate_min:
+            #    learning_rate *= learning_rate_decay
+
+            #q_values = q_learner.q_values(np.reshape(state, observation_shape), sess)
             # a_t = policy(q_values, eps)
-            a_t = policy(q_values, strategy='boltzmann', temperature=temperature)
-            total_action += a_t
+            #a_t = policy(q_values, strategy='boltzmann', temperature=temperature)
+            #total_action += a_t
 
             prev_observation = observation
 
-            observation, reward, done, _ = env.step(a_t)
+            observation, reward, done, _ = env.step(np.random.randint(n_actions))
             total_reward += reward
 
             # new_state = preprocess(prev_observation, observation)
+            #print(observation)
+            #print(prev_observation)
             new_state = prepro(observation, prev_observation)
 
-            experience.add(tuple([state, a_t, reward, new_state, done]))
+            #experience.add(tuple([state, a_t, reward, new_state, done]))
 
-            state_batch, action_batch, reward_batch, next_state_batch, is_done_batch = \
-                    experience.sample_batch(n_batch)
+            #state_batch, action_batch, reward_batch, next_state_batch, is_done_batch = \
+            #        experience.sample_batch(n_batch)
 
             # Needs to be improved, suggests the training of this sample batch
-            _, loss = sess.run([train_step, q_learner.loss], feed_dict={
-                keep_holder: keep_prob,
-                learning_rate_holder: learning_rate,
-                q_learner.state_holder: state_batch,
-                q_learner.action_holder: action_batch,
-                q_learner.reward_holder: reward_batch,
-                q_learner.next_state_holder: next_state_batch,
-                q_learner.is_done_holder: is_done_batch})
+            #_, loss = sess.run([train_step, q_learner.loss], feed_dict={
+            #    keep_holder: keep_prob,
+            #    learning_rate_holder: learning_rate,
+            #    q_learner.state_holder: state_batch,
+            #    q_learner.action_holder: action_batch,
+            #    q_learner.reward_holder: reward_batch,
+            #    q_learner.next_state_holder: next_state_batch,
+            #    q_learner.is_done_holder: is_done_batch})
+            
+            #print(new_state)
+            #print([observation, prev_observation].shape)
+            observationReshape = np.reshape(observation, (1, 210, 160, 3))
+            prev_observationReshape = np.reshape(prev_observation, (1, 210, 160, 3))
+            appendedObservation = np.append(observationReshape, prev_observationReshape, axis=3)
+            #print(appendedObservation.shape)
+            #print(np.reshape(sess.run(q_out, feed_dict={environmentObservationPlaceHolder:appendedObservation}), -1))
 
+            #while True:
+            networkOutput = np.reshape(sess.run(q_out, feed_dict={environmentObservationPlaceHolder:appendedObservation}), -1)
+
+            
+            loss = sess.run(error, feed_dict={expectedFeatureOutput:new_state,
+environmentObservationPlaceHolder:appendedObservation})
             total_loss += loss
 
+            sess.run(train, feed_dict={expectedFeatureOutput:new_state,
+environmentObservationPlaceHolder:appendedObservation})
+
+            #print(total_loss)
             state = new_state
 
-            if (i + j) % update_frequency == 0:
+            print('loss {:8g}'.format(loss))
+
+            #if (i + j) % update_frequency == 0:
                 # update target Q function weights
-                q_learner.run_target_q_update(sess)
+            #    q_learner.run_target_q_update(sess)
 
             if done:
                 break
-        if keep_prob < keep_prob_end:
-            keep_prob += (keep_prob_end - keep_prob_begin) / n_train_iterations
-        if temperature > temperature_end:
-            temperature -= (temperature_begin - temperature_end) / n_train_iterations
-            if temperature < temperature_end:
-                temperature = temperature_end
+        #if keep_prob < keep_prob_end:
+        #    keep_prob += (keep_prob_end - keep_prob_begin) / n_train_iterations
+        #if temperature > temperature_end:
+        #    temperature -= (temperature_begin - temperature_end) / n_train_iterations
+        #    if temperature < temperature_end:
+        #        temperature = temperature_end
 
+        input()
         total_loss /= j
-        total_action /= j
-        reward_list.append(total_reward)
+        #total_action /= j
+        #reward_list.append(total_reward)
         duration_list.append(j)
         loss_list.append(total_loss)
+        
         if i % print_interval == 0:
-            print('loss {:8g} +/- {:4.2f} | reward {:8.2f} +/- {:4.2f} | duration {:5f} +/- {:3f}'
-                    .format(np.mean(loss_list), np.sqrt(np.var(loss_list)), np.mean(reward_list),
-                        np.sqrt(np.var(reward_list)), np.mean(duration_list), np.sqrt(np.var(duration_list))))
+            print('loss {:8g} +/- {:4.2f}'
+                    .format(np.mean(loss_list), np.sqrt(np.var(loss_list))))
             # print('average loss in trajectory {:5d}: {:10g} | reward: {} | avg action: {}'
                     # .format(i, total_loss, total_reward, total_action))
             loss_list = []
@@ -265,12 +305,15 @@ try:
             if file_name:
                 with open(file_name, 'wb') as f:
                     model.save_weights(f, sess)
+
 except KeyboardInterrupt:
     # save parameters
     if file_name:
         with open(file_name, 'wb') as f:
             model.save_weights(f, sess)
 
+
+aaaaaa
 # __________________________________________________________________________________________________
 # Test loop
 try:
