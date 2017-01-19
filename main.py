@@ -16,23 +16,23 @@ from pong_tools import prepro
 # Learning parameters
 n_train_iterations      = 100
 n_test_iterations       = 4
-n_batch                 = 32
-update_frequency        = 32
+n_batch                 = 16
+update_frequency        = 64
 max_episode_length      = 5000
-learning_rate           = 0.020
+learning_rate           = 0.008
 learning_rate_decay     = 0.993
-learning_rate_min       = 4e-4
-gamma                   = 0.98
+learning_rate_min       = 0.009
+gamma                   = 0.99
 eps                     = 0.9
-eps_decay               = 0.85
+eps_max                 = 0.9
 eps_min                 = 0.1
 print_interval          = 10
 
 keep_prob_begin = 0.7
 keep_prob_end = 1.0
 
-temperature_begin = 1000.0
-temperature_end = 0.2
+temperature_begin = 10.0
+temperature_end = 0.1
 
 # __________________________________________________________________________________________________
 # Environment to play
@@ -58,9 +58,9 @@ file_name = 'pong_prepro.npz'
 # target_model = ConvolutionalModel(*model_args)
 
 class DropoutModel(Model):
-    def __init__(self, fc_sizes, keep_holder, input_shape=None):
-        fc1_arg = (input_shape[0], fc_sizes[:-1], False, None, False)
-        fc2_arg = (input_shape[0], fc_sizes[-1:], False)
+    def __init__(self, fc_sizes, keep_holder, input_shape=None, load_from=None):
+        fc1_arg = (input_shape[0], fc_sizes[:-1], False, load_from, False, 'fc1')
+        fc2_arg = (input_shape[0], fc_sizes[-1:], False, load_from, True, 'fc2')
 
         self.n_batch = input_shape[0]
         self.keep_holder = keep_holder
@@ -84,6 +84,14 @@ class DropoutModel(Model):
         self.fc1.run_assign_weights(key, sess)
         self.fc2.run_assign_weights(key, sess)
 
+    def save_weights(self, file_name, sess):
+        f = file_name
+        if type(file_name) == str:
+            f = open(file_name, 'wb')
+        d1 = self.fc1.saveable_weights_dict(f, sess)
+        d2 = self.fc2.saveable_weights_dict(f, sess)
+        np.savez_compressed(f, **{**d1, **d2})
+
 class SimpleModel(Model):
     def __init__(self, fc_sizes, input_shape=None):
         fc_init_arg = (input_shape[0], fc_sizes, False)
@@ -106,8 +114,8 @@ class SimpleModel(Model):
 
 keep_holder = tf.placeholder_with_default(1.0, shape=None)
 
-model_args = ([30, 60, n_actions + 1], keep_holder, train_observation_shape)
-target_model_args = ([30, 60, n_actions + 1], keep_holder, train_observation_shape)
+model_args = ([30, 60, n_actions + 1], keep_holder, train_observation_shape, file_name)
+target_model_args = ([30, 60, n_actions + 1], keep_holder, train_observation_shape, file_name)
 
 # model = SimpleModel(*model_args)
 # target_model = SimpleModel(*model_args)
@@ -198,7 +206,7 @@ try:
 
         for j in range(max_episode_length):
             if eps > eps_min:
-                eps *= eps_decay
+                eps -= (eps_max - eps_min) / n_train_iterations
 
             if learning_rate > learning_rate_min:
                 learning_rate *= learning_rate_decay
