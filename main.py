@@ -50,16 +50,16 @@ observation_shape[0] = 1
 
 # __________________________________________________________________________________________________
 # Model
-file_name = 'pong.npz'
+file_name = 'cartpole.npz'
 
 # model_args = ([5,5], [4,4], [4,4], [30, n_actions], train_observation_shape, False, file_name)
 # model = ConvolutionalModel(*model_args)
 # target_model = ConvolutionalModel(*model_args)
 
 class DropoutModel(Model):
-    def __init__(self, fc_sizes, keep_holder, input_shape=None):
-        fc1_arg = (input_shape[0], fc_sizes[:-1], False, None, False)
-        fc2_arg = (input_shape[0], fc_sizes[-1:], False)
+    def __init__(self, fc_sizes, keep_holder, input_shape=None, load_from=None):
+        fc1_arg = (input_shape[0], fc_sizes[:-1], False, load_from, False, 'fc1')
+        fc2_arg = (input_shape[0], fc_sizes[-1:], False, load_from, True, 'fc2')
 
         self.n_batch = input_shape[0]
         self.keep_holder = keep_holder
@@ -83,6 +83,14 @@ class DropoutModel(Model):
         self.fc1.run_assign_weights(key, sess)
         self.fc2.run_assign_weights(key, sess)
 
+    def save_weights(self, file_name, sess):
+        f = file_name
+        if type(file_name) == str:
+            f = open(file_name, 'wb')
+        d1 = self.fc1.saveable_weights_dict(f, sess)
+        d2 = self.fc2.saveable_weights_dict(f, sess)
+        np.savez_compressed(f, **{**d1, **d2})
+
 class SimpleModel(Model):
     def __init__(self, fc_sizes, input_shape=None):
         fc_init_arg = (input_shape[0], fc_sizes, False)
@@ -105,8 +113,8 @@ class SimpleModel(Model):
 
 keep_holder = tf.placeholder_with_default(1.0, shape=None)
 
-model_args = ([30, n_actions + 1], keep_holder, train_observation_shape)
-target_model_args = ([30, n_actions + 1], keep_holder, train_observation_shape)
+model_args = ([30, n_actions + 1], keep_holder, train_observation_shape, file_name)
+target_model_args = ([30, n_actions + 1], keep_holder, train_observation_shape, file_name)
 
 # model = SimpleModel(*model_args)
 # target_model = SimpleModel(*model_args)
@@ -259,11 +267,14 @@ try:
             loss_list = []
             duration_list = []
             reward_list = []
+            if file_name:
+                with open(file_name, 'wb') as f:
+                    model.save_weights(f, sess)
 except KeyboardInterrupt:
     # save parameters
-    if file_name and False:
+    if file_name:
         with open(file_name, 'wb') as f:
-            q_learner.save_weights(f, sess)
+            model.save_weights(f, sess)
 
 # __________________________________________________________________________________________________
 # Test loop

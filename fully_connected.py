@@ -25,12 +25,13 @@ class FCPart(SerializableWeights):
             return x
         return y
 
-    def __init__(self, n_batch, layer_sizes, do_normalize=False, load_from=None, last_part=True):
+    def __init__(self, n_batch, layer_sizes, do_normalize=False, load_from=None, last_part=True, name='fc'):
         super(FCPart, self).__init__(load_from)
         self.n_batch = n_batch
         self.last_part = last_part
         self.do_normalize = do_normalize
         self.layer_sizes = layer_sizes
+        self.name = name
 
     def add_to_graph(self, input_tensor):
         shape = input_tensor.get_shape().as_list()
@@ -48,8 +49,8 @@ class FCPart(SerializableWeights):
                 layer_size = self.layer_sizes[i]
 
                 # set up weights
-                W = self.weight_variable([prev_size, layer_size], 'fc_weights{}'.format(i))
-                b = self.bias_variable([layer_size], 0.1, 'fc_bias{}'.format(i))
+                W = self.weight_variable([prev_size, layer_size], '{}_weights{}'.format(self.name, i))
+                b = self.bias_variable([layer_size], 0.1, '{}_bias{}'.format(self.name, i))
 
                 h = tf.matmul(prev_layer, W) + b
 

@@ -2,6 +2,7 @@
 # __________________________________________________________________________________________________
 # Standard class supporting serializable weights through numpy
 
+import pdb
 import tensorflow as tf
 import numpy as np
 
@@ -40,6 +41,7 @@ class SerializableWeights:
         i_min = -i_max
         try:
             initial = tf.constant(self.loaded[name], shape=shape)
+            print('loaded {}'.format(name))
         except:
             if self.loaded:
                 print('Warning: load_from given but unable to load {}'.format(name))
@@ -66,6 +68,6 @@ class SerializableWeights:
         self.bias_list = []
         self.loaded = None
         try:
-            self.loaded = np.load(load_from, mmap_mode=mmap)
+            self.loaded = np.load(load_from, mmap_mode='r')
         except:
             self.loaded = None
