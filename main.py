@@ -27,10 +27,10 @@ eps_decay               = 0.85
 eps_min                 = 0.1
 print_interval          = 5
 
-keep_prob_begin = 0.8
+keep_prob_begin = 0.9
 keep_prob_end = 1.0
 
-temperature_begin = 2.0
+temperature_begin = 4.0
 temperature_end = 0.2
 
 # __________________________________________________________________________________________________
@@ -113,8 +113,8 @@ class SimpleModel(Model):
 
 keep_holder = tf.placeholder_with_default(1.0, shape=None)
 
-model_args = ([30, n_actions + 1], keep_holder, train_observation_shape, file_name)
-target_model_args = ([30, n_actions + 1], keep_holder, train_observation_shape, file_name)
+model_args = ([20, n_actions + 1], keep_holder, train_observation_shape, file_name)
+target_model_args = ([20, n_actions + 1], keep_holder, train_observation_shape, file_name)
 
 # model = SimpleModel(*model_args)
 # target_model = SimpleModel(*model_args)
