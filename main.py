@@ -10,36 +10,37 @@ import gym
 from q_learner import QLearner
 from fully_connected import FCPart
 from model import Model
+from pong_tools import prepro
 
 # __________________________________________________________________________________________________
 # Learning parameters
-n_train_iterations      = 50
+n_train_iterations      = 100
 n_test_iterations       = 4
-n_batch                 = 20
-update_frequency        = 9
-max_episode_length      = 200
-learning_rate           = 3e-3
-learning_rate_decay     = 0.95
-learning_rate_min       = 1e-3
-gamma                   = 0.99
+n_batch                 = 32
+update_frequency        = 32
+max_episode_length      = 5000
+learning_rate           = 0.020
+learning_rate_decay     = 0.993
+learning_rate_min       = 4e-4
+gamma                   = 0.98
 eps                     = 0.9
 eps_decay               = 0.85
 eps_min                 = 0.1
-print_interval          = 5
+print_interval          = 10
 
-keep_prob_begin = 0.8
+keep_prob_begin = 0.7
 keep_prob_end = 1.0
 
-temperature_begin = 2.0
+temperature_begin = 1000.0
 temperature_end = 0.2
 
 # __________________________________________________________________________________________________
 # Environment to play
-# env = gym.make('Pong-v0')
-env = gym.make('CartPole-v0')
+env = gym.make('Pong-v0')
 
 n_actions = env.action_space.n
-train_observation_shape = list(env.observation_space.shape)
+# train_observation_shape = list(env.observation_space.shape)
+train_observation_shape = [6]
 
 # For first simple testing, input is two adjacent frames
 # train_observation_shape[-1] = 2
@@ -50,7 +51,7 @@ observation_shape[0] = 1
 
 # __________________________________________________________________________________________________
 # Model
-file_name = 'pong.npz'
+file_name = 'pong_prepro.npz'
 
 # model_args = ([5,5], [4,4], [4,4], [30, n_actions], train_observation_shape, False, file_name)
 # model = ConvolutionalModel(*model_args)
@@ -105,8 +106,8 @@ class SimpleModel(Model):
 
 keep_holder = tf.placeholder_with_default(1.0, shape=None)
 
-model_args = ([30, n_actions + 1], keep_holder, train_observation_shape)
-target_model_args = ([30, n_actions + 1], keep_holder, train_observation_shape)
+model_args = ([30, 60, n_actions + 1], keep_holder, train_observation_shape)
+target_model_args = ([30, 60, n_actions + 1], keep_holder, train_observation_shape)
 
 # model = SimpleModel(*model_args)
 # target_model = SimpleModel(*model_args)
@@ -178,7 +179,7 @@ def policy(q_values, strategy='epsgreedy', **kwargs):
 # __________________________________________________________________________________________________
 # Train loop - Sample trajectories - Update Q-Function
 try:
-    experience = Experience(10000)
+    experience = Experience(5000)
     loss_list = []
     reward_list = []
     duration_list = []
@@ -189,7 +190,8 @@ try:
     for i in range(n_train_iterations):
         observation = env.reset()
         prev_observation = observation
-        state = preprocess(prev_observation, observation)
+        # state = preprocess(prev_observation, observation)
+        state = prepro(observation, prev_observation)
         total_loss = 0
         total_reward = 0
         total_action = 0
@@ -211,7 +213,8 @@ try:
             observation, reward, done, _ = env.step(a_t)
             total_reward += reward
 
-            new_state = preprocess(prev_observation, observation)
+            # new_state = preprocess(prev_observation, observation)
+            new_state = prepro(observation, prev_observation)
 
             experience.add(tuple([state, a_t, reward, new_state, done]))
 
@@ -259,11 +262,14 @@ try:
             loss_list = []
             duration_list = []
             reward_list = []
+            if file_name:
+                with open(file_name, 'wb') as f:
+                    model.save_weights(f, sess)
 except KeyboardInterrupt:
     # save parameters
-    if file_name and False:
+    if file_name:
         with open(file_name, 'wb') as f:
-            q_learner.save_weights(f, sess)
+            model.save_weights(f, sess)
 
 # __________________________________________________________________________________________________
 # Test loop
@@ -271,7 +277,8 @@ try:
     for i in range(n_test_iterations):
         observation = env.reset()
         prev_observation = observation
-        state = preprocess(prev_observation, observation)
+        # state = preprocess(prev_observation, observation)
+        state = prepro(observation, prev_observation)
 
         for j in range(max_episode_length):
             env.render()
@@ -282,7 +289,8 @@ try:
             prev_observation = observation
 
             observation, reward, done, _ = env.step(a_t)
-            new_state = preprocess(prev_observation, observation)
+            # new_state = preprocess(prev_observation, observation)
+            new_state = prepro(observation, prev_observation)
 
             state = new_state
 
