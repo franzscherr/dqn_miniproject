@@ -115,7 +115,7 @@ target_model_args = ([30, 60, n_actions + 1], keep_holder, train_observation_sha
 
 environmentObservationPlaceHolder = tf.placeholder(dtype=tf.float32, shape=(n_batch, 210, 160, 6))
 expectedFeatureOutput = tf.placeholder(dtype=tf.float32, shape=(n_batch, 6))
-model_args = (n_batch, [4, 4], [60, 30], (2, 2), [20, 6])
+model_args = (n_batch, [4, 4], [60, 30], (2, 2), [20, 6], None, False, file_name)
 model = ConvolutionalModel(*model_args)
 q_out = model.add_to_graph(environmentObservationPlaceHolder)
 error = tf.reduce_sum((expectedFeatureOutput - q_out) ** 2)
