@@ -2,6 +2,7 @@
 # __________________________________________________________________________________________________
 # Main file that implements Q-Learning with experience replay
 
+import pdb
 import tensorflow as tf
 import numpy as np
 import gym
@@ -13,7 +14,7 @@ from model import Model
 # __________________________________________________________________________________________________
 # Learning parameters
 n_train_iterations      = 50
-n_test_iterations       = 10
+n_test_iterations       = 4
 n_batch                 = 20
 update_frequency        = 9
 max_episode_length      = 200
@@ -25,6 +26,12 @@ eps                     = 0.9
 eps_decay               = 0.85
 eps_min                 = 0.1
 print_interval          = 5
+
+keep_prob_begin = 0.8
+keep_prob_end = 1.0
+
+temperature_begin = 2.0
+temperature_end = 0.2
 
 # __________________________________________________________________________________________________
 # Environment to play
@@ -49,6 +56,33 @@ file_name = 'pong.npz'
 # model = ConvolutionalModel(*model_args)
 # target_model = ConvolutionalModel(*model_args)
 
+class DropoutModel(Model):
+    def __init__(self, fc_sizes, keep_holder, input_shape=None):
+        fc1_arg = (input_shape[0], fc_sizes[:-1], False, None, False)
+        fc2_arg = (input_shape[0], fc_sizes[-1:], False)
+
+        self.n_batch = input_shape[0]
+        self.keep_holder = keep_holder
+
+        self.fc1 = FCPart(*fc1_arg)
+        self.fc2 = FCPart(*fc2_arg)
+        self.input_shape = input_shape
+        self.input_shape[0] = None
+
+    def add_to_graph(self, input_tensor):
+        interm = self.fc1.add_to_graph(input_tensor)
+        interm_dp = tf.nn.dropout(interm, self.keep_holder)
+        q_out = self.fc2.add_to_graph(interm_dp)
+        return q_out
+
+    def add_assign_weights(self, key, rhs):
+        self.fc1.add_assign_weights(key, rhs.fc1)
+        self.fc2.add_assign_weights(key, rhs.fc2)
+
+    def run_assign_weights(self, key, sess):
+        self.fc1.run_assign_weights(key, sess)
+        self.fc2.run_assign_weights(key, sess)
+
 class SimpleModel(Model):
     def __init__(self, fc_sizes, input_shape=None):
         fc_init_arg = (input_shape[0], fc_sizes, False)
@@ -69,9 +103,15 @@ class SimpleModel(Model):
     def run_assign_weights(self, key, sess):
         self.fc_part.run_assign_weights(key, sess)
 
-model_args = ([30, n_actions + 1], train_observation_shape)
-model = SimpleModel(*model_args)
-target_model = SimpleModel(*model_args)
+keep_holder = tf.placeholder_with_default(1.0, shape=None)
+
+model_args = ([30, n_actions + 1], keep_holder, train_observation_shape)
+target_model_args = ([30, n_actions + 1], keep_holder, train_observation_shape)
+
+# model = SimpleModel(*model_args)
+# target_model = SimpleModel(*model_args)
+model = DropoutModel(*model_args)
+target_model = DropoutModel(*target_model_args)
 
 q_learner = QLearner(n_actions, model, target_model, train_observation_shape, gamma)
 q_learner.add_to_graph()
@@ -120,11 +160,20 @@ def preprocess(previous, current):
     # return np.concatenate([a, b], axis=(len(previous.shape) - 1))
     return current
 
-def policy(q_values, eps):
+def policy(q_values, strategy='epsgreedy', **kwargs):
     # q_values 1 x n_actions
-    if np.random.rand() < eps:
+    if strategy == 'epsgreedy':
+        eps = kwargs.get('eps', 0.1)
+        if np.random.rand() < eps:
+            return np.random.randint(n_actions)
+        return np.argmax(q_values[:, :-1])
+    elif strategy == 'boltzmann':
+        temperature = kwargs.get('temperature', 1.0)
+        e = np.exp(q_values[0, :-1] / temperature)
+        dist = e / np.sum(e)
+        return np.random.choice(n_actions, p=dist)
+    else:
         return np.random.randint(n_actions)
-    return np.argmax(q_values[:, :-1])
 
 # __________________________________________________________________________________________________
 # Train loop - Sample trajectories - Update Q-Function
@@ -133,6 +182,9 @@ try:
     loss_list = []
     reward_list = []
     duration_list = []
+
+    keep_prob = keep_prob_begin
+    temperature = temperature_begin
 
     for i in range(n_train_iterations):
         observation = env.reset()
@@ -150,7 +202,8 @@ try:
                 learning_rate *= learning_rate_decay
 
             q_values = q_learner.q_values(np.reshape(state, observation_shape), sess)
-            a_t = policy(q_values, eps)
+            # a_t = policy(q_values, eps)
+            a_t = policy(q_values, strategy='boltzmann', temperature=temperature)
             total_action += a_t
 
             prev_observation = observation
@@ -167,6 +220,7 @@ try:
 
             # Needs to be improved, suggests the training of this sample batch
             _, loss = sess.run([train_step, q_learner.loss], feed_dict={
+                keep_holder: keep_prob,
                 learning_rate_holder: learning_rate,
                 q_learner.state_holder: state_batch,
                 q_learner.action_holder: action_batch,
@@ -184,6 +238,13 @@ try:
 
             if done:
                 break
+        if keep_prob < keep_prob_end:
+            keep_prob += (keep_prob_end - keep_prob_begin) / n_train_iterations
+        if temperature > temperature_end:
+            temperature -= (temperature_begin - temperature_end) / n_train_iterations
+            if temperature < temperature_end:
+                temperature = temperature_end
+
         total_loss /= j
         total_action /= j
         reward_list.append(total_reward)
@@ -216,7 +277,7 @@ try:
             env.render()
 
             q_values = q_learner.q_values(np.reshape(state, observation_shape), sess)
-            a_t = policy(q_values, 0)
+            a_t = policy(q_values, strategy='epsgreedy', eps=0)
 
             prev_observation = observation
 
