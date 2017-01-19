@@ -40,6 +40,7 @@ class SerializableWeights:
         i_min = -i_max
         try:
             initial = tf.constant(self.loaded[name], shape=shape)
+            print('loaded {}'.format(name))
         except:
             if self.loaded:
                 print('Warning: load_from given but unable to load {}'.format(name))
@@ -52,6 +53,7 @@ class SerializableWeights:
         # RELU aware - initialization
         try:
             initial = tf.constant(self.loaded[name], shape=shape)
+            print('loaded {}'.format(name))
         except:
             if self.loaded:
                 print('Warning: load_from given but unable to load {}'.format(name))
