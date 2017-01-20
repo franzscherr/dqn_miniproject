@@ -29,7 +29,7 @@ params['eps_max']                 = 0.9
 params['eps_min']                 = 0.1
 params['print_interval']          = 10
 
-params['keep_prob_begin'] = 0.7
+params['keep_prob_begin'] = 0.6
 params['keep_prob_end'] = 1.0
 params['keep_prob'] = params['keep_prob_begin']
 
@@ -167,8 +167,8 @@ class SimpleModel(Model):
 
 keep_holder = tf.placeholder_with_default(1.0, shape=None)
 
-model_args = ([30, n_actions + 1], keep_holder, train_observation_shape, file_name)
-target_model_args = ([30, n_actions + 1], keep_holder, train_observation_shape, file_name)
+model_args = ([50, n_actions + 1], keep_holder, train_observation_shape, file_name)
+target_model_args = ([50, n_actions + 1], keep_holder, train_observation_shape, file_name)
 
 # model = SimpleModel(*model_args)
 # target_model = SimpleModel(*model_args)
