@@ -14,25 +14,78 @@ from pong_tools import prepro
 
 # __________________________________________________________________________________________________
 # Learning parameters
-n_train_iterations      = 200
-n_test_iterations       = 4
-n_batch                 = 16
-update_frequency        = 9
-max_episode_length      = 5000
-learning_rate           = 0.003
-learning_rate_decay     = 0.997
-learning_rate_min       = 0.001
-gamma                   = 0.99
-eps                     = 0.9
-eps_max                 = 0.9
-eps_min                 = 0.1
-print_interval          = 10
+params = {}
+params['n_train_iterations']      = 1000
+params['n_test_iterations']       = 4
+params['n_batch']                 = 16
+params['update_frequency']        = 9
+params['max_episode_length']      = 5000
+params['learning_rate']           = 0.001
+params['learning_rate_decay']     = 0.999
+params['learning_rate_min']       = 0.0007
+params['gamma']                   = 0.99
+params['eps']                     = 0.9
+params['eps_max']                 = 0.9
+params['eps_min']                 = 0.1
+params['print_interval']          = 10
 
-keep_prob_begin = 0.7
-keep_prob_end = 1.0
+params['keep_prob_begin'] = 0.7
+params['keep_prob_end'] = 1.0
+params['keep_prob'] = params['keep_prob_begin']
 
-temperature_begin = 4.0
-temperature_end = 0.1
+params['temperature_begin'] = 4.0
+params['temperature_end'] = 0.1
+params['temperature'] = params['temperature_begin']
+
+# __________________________________________________________________________________________________
+# Load parameters from configuration (if existent, or create one)
+import sys
+import pickle as pl
+import os
+session_path = None
+
+# __________________________________________________________________________________________________
+# EnvLog helps to log the training process
+class EnvLog:
+    def __init__(self):
+        # per training sample
+        self.loss = []
+        self.learning_rate = []
+        self.temperature = []
+
+        # per trajectory
+        self.duration = []
+        self.reward = []
+
+    def add_after_sample(self, loss, learning_rate, temperature):
+        self.loss.append(loss)
+        self.learning_rate.append(learning_rate)
+        self.temperature.append(temperature)
+
+    def add_after_trajectory(self, reward, duration):
+        self.reward.append(reward)
+        self.duration.append(duration)
+
+    def save(self, f):
+        pl.dump((self.duration, self.reward, self.loss, self.learning_rate, self.temperature), f)
+
+    def load(self, f):
+        self.duration, self.reward, self.loss, self.learning_rate, self.temperature = pl.load(f)
+
+elog = EnvLog()
+
+if len(sys.argv) > 1:
+    session_path = sys.argv[1]
+    if not os.path.exists(session_path):
+        os.mkdir(session_path)
+    if os.path.exists(session_path + '/config.pkl'):
+        with open(session_path + '/config.pkl', 'rb') as f:
+            params = pl.load(f)
+        with open(session_path + '/log.pkl', 'rb') as f:
+            elog.load(f)
+    else:
+        with open(session_path + '/config.pkl', 'wb') as f:
+            pl.dump(params, f)
 
 # __________________________________________________________________________________________________
 # Environment to play
@@ -44,14 +97,14 @@ train_observation_shape = [6]
 
 # For first simple testing, input is two adjacent frames
 # train_observation_shape[-1] = 2
-train_observation_shape.insert(0, n_batch)
+train_observation_shape.insert(0, params['n_batch'])
 
 observation_shape = train_observation_shape[:]
 observation_shape[0] = 1
 
 # __________________________________________________________________________________________________
 # Model
-file_name = 'pong_prepro.npz'
+file_name = session_path + '/model.npz'
 
 # model_args = ([5,5], [4,4], [4,4], [30, n_actions], train_observation_shape, False, file_name)
 # model = ConvolutionalModel(*model_args)
@@ -122,11 +175,11 @@ target_model_args = ([30, n_actions + 1], keep_holder, train_observation_shape, 
 model = DropoutModel(*model_args)
 target_model = DropoutModel(*target_model_args)
 
-q_learner = QLearner(n_actions, model, target_model, train_observation_shape, gamma)
+q_learner = QLearner(n_actions, model, target_model, train_observation_shape, params['gamma'])
 q_learner.add_to_graph()
 
-train_step = tf.train.AdamOptimizer(learning_rate).minimize(q_learner.loss)
 learning_rate_holder = tf.placeholder(dtype=tf.float32)
+train_step = tf.train.AdamOptimizer(learning_rate_holder).minimize(q_learner.loss)
 # train_step = tf.train.GradientDescentOptimizer(learning_rate_holder).minimize(q_learner.loss)
 
 # __________________________________________________________________________________________________
@@ -185,34 +238,6 @@ def policy(q_values, strategy='epsgreedy', **kwargs):
         return np.random.randint(n_actions)
 
 
-# __________________________________________________________________________________________________
-# EnvLog helps to log the training process
-import pickle as pl
-class EnvLog:
-    def __init__(self):
-        # per training sample
-        self.loss = []
-        self.learning_rate = []
-        self.temperature = []
-
-        # per trajectory
-        self.duration = []
-        self.reward = []
-
-    def add_after_sample(loss, learning_rate, temperature):
-        self.loss.append(loss)
-        self.learning_rate.append(learning_rate)
-        self.temperature.append(temperature)
-
-    def add_after_trajectory(reward, duration):
-        self.reward.append(reward)
-        self.duration.append(duration)
-
-    def save(f):
-        pl.dump((self.duration, self.reward, self.loss, self.learning_rate, self.temperature), f)
-
-    def load(f):
-        self.duration, self.reward, self.loss, self.learning_rate, self.temperature = pl.load(f)
 
 # __________________________________________________________________________________________________
 # Train loop - Sample trajectories - Update Q-Function
@@ -222,10 +247,7 @@ try:
     reward_list = []
     duration_list = []
 
-    keep_prob = keep_prob_begin
-    temperature = temperature_begin
-
-    for i in range(n_train_iterations):
+    for i in range(params['n_train_iterations']):
         observation = env.reset()
         prev_observation = observation
         # state = preprocess(prev_observation, observation)
@@ -234,16 +256,16 @@ try:
         total_reward = 0
         total_action = 0
 
-        for j in range(max_episode_length):
-            if eps > eps_min:
-                eps -= (eps_max - eps_min) / n_train_iterations
+        for j in range(params['max_episode_length']):
+            if params['eps'] > params['eps_min']:
+                params['eps'] -= (params['eps_max'] - params['eps_min']) / params['n_train_iterations']
 
-            if learning_rate > learning_rate_min:
-                learning_rate *= learning_rate_decay
+            if params['learning_rate'] > params['learning_rate_min']:
+                params['learning_rate'] *= params['learning_rate_decay']
 
             q_values = q_learner.q_values(np.reshape(state, observation_shape), sess)
             # a_t = policy(q_values, eps)
-            a_t = policy(q_values, strategy='boltzmann', temperature=temperature)
+            a_t = policy(q_values, strategy='boltzmann', temperature=params['temperature'])
             total_action += a_t
 
             prev_observation = observation
@@ -257,12 +279,12 @@ try:
             experience.add(tuple([state, a_t, reward, new_state, done]))
 
             state_batch, action_batch, reward_batch, next_state_batch, is_done_batch = \
-                    experience.sample_batch(n_batch)
+                    experience.sample_batch(params['n_batch'])
 
             # Needs to be improved, suggests the training of this sample batch
             _, loss = sess.run([train_step, q_learner.loss], feed_dict={
-                keep_holder: keep_prob,
-                learning_rate_holder: learning_rate,
+                keep_holder: params['keep_prob'],
+                learning_rate_holder: params['learning_rate'],
                 q_learner.state_holder: state_batch,
                 q_learner.action_holder: action_batch,
                 q_learner.reward_holder: reward_batch,
@@ -270,28 +292,30 @@ try:
                 q_learner.is_done_holder: is_done_batch})
 
             total_loss += loss
+            elog.add_after_sample(loss, params['learning_rate'], params['temperature'])
 
             state = new_state
 
-            if (i + j) % update_frequency == 0:
+            if (i + j) % params['update_frequency'] == 0:
                 # update target Q function weights
                 q_learner.run_target_q_update(sess)
 
             if done:
                 break
-        if keep_prob < keep_prob_end:
-            keep_prob += (keep_prob_end - keep_prob_begin) / n_train_iterations
-        if temperature > temperature_end:
-            temperature -= (temperature_begin - temperature_end) / n_train_iterations
-            if temperature < temperature_end:
-                temperature = temperature_end
+        if params['keep_prob'] < params['keep_prob_end']:
+            params['keep_prob'] += (params['keep_prob_end'] - params['keep_prob_begin']) / params['n_train_iterations']
+        if params['temperature'] > params['temperature_end']:
+            params['temperature'] -= (params['temperature_begin'] - params['temperature_end']) / params['n_train_iterations']
+            if params['temperature'] < params['temperature_end']:
+                params['temperature'] = params['temperature_end']
+        elog.add_after_trajectory(total_reward, j + 1)
 
         total_loss /= j
         total_action /= j
         reward_list.append(total_reward)
         duration_list.append(j)
         loss_list.append(total_loss)
-        if i % print_interval == 0:
+        if i % params['print_interval'] == 0:
             print('loss {:8g} +/- {:4.2f} | reward {:8.2f} +/- {:4.2f} | duration {:5f} +/- {:3f}'
                     .format(np.mean(loss_list), np.sqrt(np.var(loss_list)), np.mean(reward_list),
                         np.sqrt(np.var(reward_list)), np.mean(duration_list), np.sqrt(np.var(duration_list))))
@@ -303,22 +327,30 @@ try:
             if file_name:
                 with open(file_name, 'wb') as f:
                     model.save_weights(f, sess)
+            with open(session_path + '/config.pkl', 'wb') as f:
+                pl.dump(params, f)
+            with open(session_path + '/log.pkl', 'wb') as f:
+                elog.save(f)
 except KeyboardInterrupt:
     # save parameters
     if file_name:
         with open(file_name, 'wb') as f:
             model.save_weights(f, sess)
+    with open(session_path + '/config.pkl', 'wb') as f:
+        pl.dump(params, f)
+    with open(session_path + '/log.pkl', 'wb') as f:
+        elog.save(f)
 
 # __________________________________________________________________________________________________
 # Test loop
 try:
-    for i in range(n_test_iterations):
+    for i in range(params['n_test_iterations']):
         observation = env.reset()
         prev_observation = observation
         # state = preprocess(prev_observation, observation)
         state = prepro(observation, prev_observation)
 
-        for j in range(max_episode_length):
+        for j in range(params['max_episode_length']):
             env.render()
 
             q_values = q_learner.q_values(np.reshape(state, observation_shape), sess)
