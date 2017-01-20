@@ -39,9 +39,17 @@ class QLearner:
             
             value = self.q_out[:, -1]
             value = tf.reshape(value, [-1, 1])
-            real_q = self.q_out[:, :-1] + value
+            advantage = self.q_out[:, :-1]
+            advantage = advantage - tf.reduce_mean(advantage, axis=1, keep_dims=True)
 
-            real_t_q = self.t_q_out[:, :-1] + tf.reshape(self.t_q_out[:, -1], [-1, 1])
+            real_q = advantage + value
+
+            t_value = self.t_q_out[:, -1]
+            t_value = tf.reshape(t_value, [-1, 1])
+            t_advantage = self.t_q_out[:, :-1]
+            t_advantage = t_advantage - tf.reduce_mean(t_advantage, axis=1, keep_dims=True)
+
+            real_t_q = t_value + t_advantage
 
             y = self.reward_holder + self.gamma * tf.reduce_max(real_t_q, axis=1) * \
                     (1 - is_done_float)

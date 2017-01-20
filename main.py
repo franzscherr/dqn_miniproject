@@ -14,14 +14,14 @@ from pong_tools import prepro
 
 # __________________________________________________________________________________________________
 # Learning parameters
-n_train_iterations      = 100
+n_train_iterations      = 200
 n_test_iterations       = 4
 n_batch                 = 16
-update_frequency        = 64
+update_frequency        = 9
 max_episode_length      = 5000
-learning_rate           = 0.008
-learning_rate_decay     = 0.993
-learning_rate_min       = 0.009
+learning_rate           = 0.003
+learning_rate_decay     = 0.997
+learning_rate_min       = 0.001
 gamma                   = 0.99
 eps                     = 0.9
 eps_max                 = 0.9
@@ -31,7 +31,7 @@ print_interval          = 10
 keep_prob_begin = 0.7
 keep_prob_end = 1.0
 
-temperature_begin = 10.0
+temperature_begin = 4.0
 temperature_end = 0.1
 
 # __________________________________________________________________________________________________
@@ -114,8 +114,8 @@ class SimpleModel(Model):
 
 keep_holder = tf.placeholder_with_default(1.0, shape=None)
 
-model_args = ([30, 60, n_actions + 1], keep_holder, train_observation_shape, file_name)
-target_model_args = ([30, 60, n_actions + 1], keep_holder, train_observation_shape, file_name)
+model_args = ([30, n_actions + 1], keep_holder, train_observation_shape, file_name)
+target_model_args = ([30, n_actions + 1], keep_holder, train_observation_shape, file_name)
 
 # model = SimpleModel(*model_args)
 # target_model = SimpleModel(*model_args)
@@ -183,6 +183,36 @@ def policy(q_values, strategy='epsgreedy', **kwargs):
         return np.random.choice(n_actions, p=dist)
     else:
         return np.random.randint(n_actions)
+
+
+# __________________________________________________________________________________________________
+# EnvLog helps to log the training process
+import pickle as pl
+class EnvLog:
+    def __init__(self):
+        # per training sample
+        self.loss = []
+        self.learning_rate = []
+        self.temperature = []
+
+        # per trajectory
+        self.duration = []
+        self.reward = []
+
+    def add_after_sample(loss, learning_rate, temperature):
+        self.loss.append(loss)
+        self.learning_rate.append(learning_rate)
+        self.temperature.append(temperature)
+
+    def add_after_trajectory(reward, duration):
+        self.reward.append(reward)
+        self.duration.append(duration)
+
+    def save(f):
+        pl.dump((self.duration, self.reward, self.loss, self.learning_rate, self.temperature), f)
+
+    def load(f):
+        self.duration, self.reward, self.loss, self.learning_rate, self.temperature = pl.load(f)
 
 # __________________________________________________________________________________________________
 # Train loop - Sample trajectories - Update Q-Function
