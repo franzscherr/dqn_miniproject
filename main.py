@@ -16,12 +16,12 @@ from convolutional_model import ConvolutionalModel
 
 # __________________________________________________________________________________________________
 # Learning parameters
-n_train_iterations      = 100
+n_train_iterations      = 1000
 n_test_iterations       = 4
-n_batch                 = 32
+n_batch                 = 4
 update_frequency        = 32
 max_episode_length      = 5000
-learning_rate           = 0.02
+learning_rate           = 0.002
 learning_rate_decay     = 0.993
 learning_rate_min       = 4e-4
 gamma                   = 0.98
@@ -115,7 +115,7 @@ target_model_args = ([30, 60, n_actions + 1], keep_holder, train_observation_sha
 
 environmentObservationPlaceHolder = tf.placeholder(dtype=tf.float32, shape=(n_batch, 210, 160, 6))
 expectedFeatureOutput = tf.placeholder(dtype=tf.float32, shape=(n_batch, 6))
-model_args = (n_batch, [4, 4], [60, 30], (2, 2), [20, 6], None, False, file_name)
+model_args = (n_batch, [4, 4], [20, 10], (2, 2), [40, 6], None, False, file_name)
 model = ConvolutionalModel(*model_args)
 q_out = model.add_to_graph(environmentObservationPlaceHolder)
 error = tf.reduce_sum((expectedFeatureOutput - q_out) ** 2)
@@ -262,6 +262,8 @@ try:
 
             #for z in range(0, 10):
             networkOutput = np.reshape(sess.run(q_out, feed_dict={environmentObservationPlaceHolder:appendedObservation}), -1)
+            #print(networkOutput)
+            #print(new_stateBatch)
 
             
             loss = sess.run(error, feed_dict={expectedFeatureOutput:new_stateBatch,
@@ -274,7 +276,7 @@ environmentObservationPlaceHolder:appendedObservation})
             #print(total_loss)
             state = new_state
 
-            print('loss {:8g}'.format(loss))
+            #print('loss {:8g}'.format(loss))
             
             if file_name and (j % 100) == 0:
                 with open(file_name, 'wb') as f:
@@ -293,24 +295,21 @@ environmentObservationPlaceHolder:appendedObservation})
         #    if temperature < temperature_end:
         #        temperature = temperature_end
 
-        input()
         total_loss /= j
         #total_action /= j
         #reward_list.append(total_reward)
         duration_list.append(j)
         loss_list.append(total_loss)
-        
-        if i % print_interval == 0:
-            print('loss {:8g} +/- {:4.2f}'
-                    .format(np.mean(loss_list), np.sqrt(np.var(loss_list))))
+   
+        print('loss {:8g} +/- {:4.2f}'.format(np.mean(loss_list), np.sqrt(np.var(loss_list))))
             # print('average loss in trajectory {:5d}: {:10g} | reward: {} | avg action: {}'
                     # .format(i, total_loss, total_reward, total_action))
-            loss_list = []
-            duration_list = []
-            reward_list = []
-            if file_name:
-                with open(file_name, 'wb') as f:
-                    model.save_weights(f, sess)
+        loss_list = []
+        duration_list = []
+        reward_list = []
+        if file_name:
+            with open(file_name, 'wb') as f:
+                model.save_weights(f, sess)
 
 except KeyboardInterrupt:
     # save parameters
