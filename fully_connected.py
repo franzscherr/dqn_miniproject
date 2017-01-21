@@ -56,8 +56,8 @@ class FCPart(SerializableWeights):
 
                 # activation (not for output)
                 if not self.last_part or i != len(self.layer_sizes) - 1:
-                    # h = tf.nn.relu(h, name='activation')
-                    h = tf.nn.tanh(h, name='activation')
+                    h = tf.nn.relu(h, name='activation')
+                    # h = tf.nn.tanh(h, name='activation')
 
                     if self.do_normalize:
                         gamma = tf.Variable(1.0, name='gamma')

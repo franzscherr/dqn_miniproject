@@ -38,6 +38,8 @@ class SerializableWeights:
         # PRO: m + n is input + output, which is exactly this
         i_max = np.sqrt(6 / np.sum(shape))
         i_min = -i_max
+        i_max = 0.05
+        i_min = -0.05
         try:
             initial = tf.constant(self.loaded[name], shape=shape)
             print('loaded {}'.format(name))
@@ -51,6 +53,7 @@ class SerializableWeights:
 
     def bias_variable(self, shape, value, name):
         # RELU aware - initialization
+        value=0.1
         try:
             initial = tf.constant(self.loaded[name], shape=shape)
             print('loaded {}'.format(name))

@@ -15,26 +15,26 @@ from pong_tools import prepro
 # __________________________________________________________________________________________________
 # Learning parameters
 params = {}
-params['n_train_iterations']      = 1000
+params['n_train_iterations']      = 5000
 params['n_test_iterations']       = 4
-params['n_batch']                 = 16
+params['n_batch']                 = 32
 params['update_frequency']        = 9
 params['max_episode_length']      = 5000
-params['learning_rate']           = 0.001
-params['learning_rate_decay']     = 0.999
-params['learning_rate_min']       = 0.0007
-params['gamma']                   = 0.99
-params['eps']                     = 0.9
-params['eps_max']                 = 0.9
+params['learning_rate']           = 0.0001
+params['learning_rate_decay']     = 1
+params['learning_rate_min']       = 0.002
+params['gamma']                   = 0.993
+params['eps']                     = 0.4
+params['eps_max']                 = 0.9954
 params['eps_min']                 = 0.1
-params['print_interval']          = 10
+params['print_interval']          = 5
 
-params['keep_prob_begin'] = 0.6
+params['keep_prob_begin'] = 0.95
 params['keep_prob_end'] = 1.0
 params['keep_prob'] = params['keep_prob_begin']
 
-params['temperature_begin'] = 4.0
-params['temperature_end'] = 0.1
+params['temperature_begin'] = 0.6
+params['temperature_end'] = 5.0
 params['temperature'] = params['temperature_begin']
 
 # __________________________________________________________________________________________________
@@ -113,37 +113,44 @@ file_name = session_path + '/model.npz'
 class DropoutModel(Model):
     def __init__(self, fc_sizes, keep_holder, input_shape=None, load_from=None):
         fc1_arg = (input_shape[0], fc_sizes[:-1], False, load_from, False, 'fc1')
-        fc2_arg = (input_shape[0], fc_sizes[-1:], False, load_from, True, 'fc2')
+        fc_advantage_arg = (input_shape[0], [n_actions], False, load_from, True, 'fc_advantage')
+        fc_value_arg = (input_shape[0], [10, 1], False, load_from, True, 'fc_value')
 
         self.n_batch = input_shape[0]
         self.keep_holder = keep_holder
 
         self.fc1 = FCPart(*fc1_arg)
-        self.fc2 = FCPart(*fc2_arg)
+        self.fc_advantage = FCPart(*fc_advantage_arg)
+        self.fc_value = FCPart(*fc_value_arg)
         self.input_shape = input_shape
         self.input_shape[0] = None
 
     def add_to_graph(self, input_tensor):
         interm = self.fc1.add_to_graph(input_tensor)
         interm_dp = tf.nn.dropout(interm, self.keep_holder)
-        q_out = self.fc2.add_to_graph(interm_dp)
-        return q_out
+        advantage = self.fc_advantage.add_to_graph(interm_dp)
+        advantage = advantage - tf.reduce_mean(advantage, axis=1, keep_dims=True)
+        value = self.fc_value.add_to_graph(interm_dp)
+        return value, advantage
 
     def add_assign_weights(self, key, rhs):
         self.fc1.add_assign_weights(key, rhs.fc1)
-        self.fc2.add_assign_weights(key, rhs.fc2)
+        self.fc_advantage.add_assign_weights(key, rhs.fc_advantage)
+        self.fc_value.add_assign_weights(key, rhs.fc_value)
 
     def run_assign_weights(self, key, sess):
         self.fc1.run_assign_weights(key, sess)
-        self.fc2.run_assign_weights(key, sess)
+        self.fc_advantage.run_assign_weights(key, sess)
+        self.fc_value.run_assign_weights(key, sess)
 
     def save_weights(self, file_name, sess):
         f = file_name
         if type(file_name) == str:
             f = open(file_name, 'wb')
         d1 = self.fc1.saveable_weights_dict(f, sess)
-        d2 = self.fc2.saveable_weights_dict(f, sess)
-        np.savez_compressed(f, **{**d1, **d2})
+        d2 = self.fc_advantage.saveable_weights_dict(f, sess)
+        d3 = self.fc_value.saveable_weights_dict(f, sess)
+        np.savez_compressed(f, **{**d1, **d2, **d3})
 
 class SimpleModel(Model):
     def __init__(self, fc_sizes, input_shape=None):
@@ -167,8 +174,8 @@ class SimpleModel(Model):
 
 keep_holder = tf.placeholder_with_default(1.0, shape=None)
 
-model_args = ([50, n_actions + 1], keep_holder, train_observation_shape, file_name)
-target_model_args = ([50, n_actions + 1], keep_holder, train_observation_shape, file_name)
+model_args = ([30, n_actions + 1], keep_holder, train_observation_shape, file_name)
+target_model_args = ([30, n_actions + 1], keep_holder, train_observation_shape, file_name)
 
 # model = SimpleModel(*model_args)
 # target_model = SimpleModel(*model_args)
@@ -195,21 +202,42 @@ import random
 
 class Experience:
     def __init__(self, capacity=100):
-        self.experience = []
+        self.experience_fi = []
+        self.experience_in = []
         self.capacity = capacity
 
     def add(self, transition):
-        if len(self.experience) >= self.capacity:
-            self.experience.pop(np.random.randint(self.capacity))
-        self.experience.append(transition)
+        if np.random.rand() < 0.5:#transition[2] != 0:
+            if len(self.experience_fi) >= self.capacity:
+                self.experience_fi.pop(np.random.randint(self.capacity))
+            self.experience_fi.append(transition)
+        else:
+            if len(self.experience_in) >= self.capacity:
+                self.experience_in.pop(np.random.randint(self.capacity))
+            self.experience_in.append(transition)
+        # if len(self.experience) >= self.capacity:
+            # # if not transition[4] and np.random.rand() > 0.003:
+                # # return
+            # self.experience.pop(np.random.randint(self.capacity))
+        # self.experience.append(transition)
 
     def sample(self):
-        return random.choice(self.experience)
+        t = None
+        while t == None:
+            if np.random.rand() < 0.5 and len(self.experience_fi) > 0:
+                t = random.choice(self.experience_fi)
+            else:
+                t = random.choice(self.experience_in)
+        return t
 
     def sample_batch(self, num):
         samples = []
         for i in range(num):
-            samples.append(self.sample())
+            t = self.sample()
+            # for j in range(50):
+                # if t[4]:
+                    # break
+            samples.append(t)
         return map(list, zip(*samples))
 
 def preprocess(previous, current):
@@ -222,18 +250,22 @@ def preprocess(previous, current):
     # return np.concatenate([a, b], axis=(len(previous.shape) - 1))
     return current
 
+q_holder = tf.placeholder(dtype=tf.float32)
+q_dist = tf.nn.softmax(q_holder)
+
 def policy(q_values, strategy='epsgreedy', **kwargs):
     # q_values 1 x n_actions
     if strategy == 'epsgreedy':
         eps = kwargs.get('eps', 0.1)
         if np.random.rand() < eps:
             return np.random.randint(n_actions)
-        return np.argmax(q_values[:, :-1])
+        return np.argmax(q_values[:, :])
     elif strategy == 'boltzmann':
         temperature = kwargs.get('temperature', 1.0)
-        e = np.exp(q_values[0, :-1] / temperature)
-        dist = e / np.sum(e)
-        return np.random.choice(n_actions, p=dist)
+        # e = np.exp((q_values[0, :]) / temperature)
+        # dist = e / np.sum(e)
+        dist = sess.run(q_dist, feed_dict={q_holder: q_values / temperature})
+        return np.random.choice(n_actions, p=dist[0])
     else:
         return np.random.randint(n_actions)
 
@@ -242,10 +274,12 @@ def policy(q_values, strategy='epsgreedy', **kwargs):
 # __________________________________________________________________________________________________
 # Train loop - Sample trajectories - Update Q-Function
 try:
-    experience = Experience(5000)
+    experience = Experience(400)
     loss_list = []
     reward_list = []
     duration_list = []
+    sch = 20
+    render = False
 
     for i in range(params['n_train_iterations']):
         observation = env.reset()
@@ -264,11 +298,13 @@ try:
                 params['learning_rate'] *= params['learning_rate_decay']
 
             q_values = q_learner.q_values(np.reshape(state, observation_shape), sess)
-            # a_t = policy(q_values, eps)
-            a_t = policy(q_values, strategy='boltzmann', temperature=params['temperature'])
+            a_t = policy(q_values, strategy='epsgreedy', eps=params['eps'])
+            # a_t = policy(q_values, strategy='boltzmann', temperature=params['temperature'])
             total_action += a_t
 
             prev_observation = observation
+            if render:
+                env.render()
 
             observation, reward, done, _ = env.step(a_t)
             total_reward += reward
@@ -278,21 +314,30 @@ try:
 
             experience.add(tuple([state, a_t, reward, new_state, done]))
 
-            state_batch, action_batch, reward_batch, next_state_batch, is_done_batch = \
-                    experience.sample_batch(params['n_batch'])
+            if (i + j) > 32 and (i + j) % params['update_frequency']:
+                state_batch, action_batch, reward_batch, next_state_batch, is_done_batch = \
+                        experience.sample_batch(params['n_batch'])
 
-            # Needs to be improved, suggests the training of this sample batch
-            _, loss = sess.run([train_step, q_learner.loss], feed_dict={
-                keep_holder: params['keep_prob'],
-                learning_rate_holder: params['learning_rate'],
-                q_learner.state_holder: state_batch,
-                q_learner.action_holder: action_batch,
-                q_learner.reward_holder: reward_batch,
-                q_learner.next_state_holder: next_state_batch,
-                q_learner.is_done_holder: is_done_batch})
+                # Needs to be improved, suggests the training of this sample batch
+                _, loss, action_one_hot, y, q, q_target, diff, expected, value, advantage = sess.run([
+                    train_step, q_learner.loss, q_learner.action_one_hot, q_learner.y, 
+                    q_learner.q_out, q_learner.t_q_out, q_learner.diff, q_learner.expected,
+                    q_learner.value, q_learner.advantage], feed_dict={
+                    keep_holder: params['keep_prob'],
+                    learning_rate_holder: params['learning_rate'],
+                    q_learner.state_holder: state_batch,
+                    q_learner.action_holder: action_batch,
+                    q_learner.reward_holder: reward_batch,
+                    q_learner.next_state_holder: next_state_batch,
+                    q_learner.is_done_holder: is_done_batch})
+                total_loss += loss
+                elog.add_after_sample(loss, params['learning_rate'], params['temperature'])
 
-            total_loss += loss
-            elog.add_after_sample(loss, params['learning_rate'], params['temperature'])
+            if render and done:
+                render = False
+                pdb.set_trace()
+            if done and i > sch:
+                pdb.set_trace()
 
             state = new_state
 
@@ -304,10 +349,10 @@ try:
                 break
         if params['keep_prob'] < params['keep_prob_end']:
             params['keep_prob'] += (params['keep_prob_end'] - params['keep_prob_begin']) / params['n_train_iterations']
-        if params['temperature'] > params['temperature_end']:
-            params['temperature'] -= (params['temperature_begin'] - params['temperature_end']) / params['n_train_iterations']
-            if params['temperature'] < params['temperature_end']:
-                params['temperature'] = params['temperature_end']
+        # if params['temperature'] > params['temperature_end']: 
+            # params['temperature'] -= (params['temperature_begin'] - params['temperature_end']) / params['n_train_iterations']
+            # if params['temperature'] < params['temperature_end']:
+                # params['temperature'] = params['temperature_end']
         elog.add_after_trajectory(total_reward, j + 1)
 
         total_loss /= j
