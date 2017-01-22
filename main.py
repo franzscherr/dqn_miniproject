@@ -18,18 +18,18 @@ params = {}
 params['n_train_iterations']      = 5000
 params['n_test_iterations']       = 4
 params['n_batch']                 = 32
-params['update_frequency']        = 9
+params['update_frequency']        = 54
 params['max_episode_length']      = 5000
 params['learning_rate']           = 0.0001
 params['learning_rate_decay']     = 1
 params['learning_rate_min']       = 0.002
-params['gamma']                   = 0.993
+params['gamma']                   = 0.985
 params['eps']                     = 0.4
-params['eps_max']                 = 0.9954
-params['eps_min']                 = 0.1
+params['eps_max']                 = 0.9994
+params['eps_min']                 = 0.15
 params['print_interval']          = 5
 
-params['keep_prob_begin'] = 0.95
+params['keep_prob_begin'] = 0.9
 params['keep_prob_end'] = 1.0
 params['keep_prob'] = params['keep_prob_begin']
 
@@ -113,8 +113,8 @@ file_name = session_path + '/model.npz'
 class DropoutModel(Model):
     def __init__(self, fc_sizes, keep_holder, input_shape=None, load_from=None):
         fc1_arg = (input_shape[0], fc_sizes[:-1], False, load_from, False, 'fc1')
-        fc_advantage_arg = (input_shape[0], [n_actions], False, load_from, True, 'fc_advantage')
-        fc_value_arg = (input_shape[0], [10, 1], False, load_from, True, 'fc_value')
+        fc_advantage_arg = (input_shape[0], [30, n_actions], False, load_from, True, 'fc_advantage')
+        fc_value_arg = (input_shape[0], [30, 20, 1], False, load_from, True, 'fc_value')
 
         self.n_batch = input_shape[0]
         self.keep_holder = keep_holder
@@ -174,8 +174,8 @@ class SimpleModel(Model):
 
 keep_holder = tf.placeholder_with_default(1.0, shape=None)
 
-model_args = ([30, n_actions + 1], keep_holder, train_observation_shape, file_name)
-target_model_args = ([30, n_actions + 1], keep_holder, train_observation_shape, file_name)
+model_args = ([40, n_actions + 1], keep_holder, train_observation_shape, file_name)
+target_model_args = ([40, n_actions + 1], keep_holder, train_observation_shape, file_name)
 
 # model = SimpleModel(*model_args)
 # target_model = SimpleModel(*model_args)
@@ -274,7 +274,7 @@ def policy(q_values, strategy='epsgreedy', **kwargs):
 # __________________________________________________________________________________________________
 # Train loop - Sample trajectories - Update Q-Function
 try:
-    experience = Experience(400)
+    experience = Experience(1300)
     loss_list = []
     reward_list = []
     duration_list = []
@@ -314,7 +314,7 @@ try:
 
             experience.add(tuple([state, a_t, reward, new_state, done]))
 
-            if (i + j) > 32 and (i + j) % params['update_frequency']:
+            if (i + j) > 32:
                 state_batch, action_batch, reward_batch, next_state_batch, is_done_batch = \
                         experience.sample_batch(params['n_batch'])
 
