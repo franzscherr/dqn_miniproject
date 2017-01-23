@@ -1,7 +1,10 @@
-# als-miniproject
+# als-miniproject CNN
 
-## Boltzmann and Bayesian action selection
-https://medium.com/emergent-future/simple-reinforcement-learning-with-tensorflow-part-7-action-selection-strategies-for-exploration-d3a97b7cceaf#.h3vrmepp9
+## Train CNN on MNist dataset
+The training of the CNN can be done based on the MNist dataset by adjusting a single variable in the main.py script.
 
-## Duelling DDQN
-https://medium.com/@awjuliani/simple-reinforcement-learning-with-tensorflow-part-4-deep-q-networks-and-beyond-8438a3e2b8df#.18v459ae1
+Therefore "trainMNist" has to be set to True. 
+The script comes with already pretrained weights. If the line 46 is commented in and 45 is commented out, the algorithm is initialized with the pretrained weights. The algorithm will continue training from this step.
+
+## Train CNN on ATARI game
+To train the CNN on a ATARI game the variable "trainMNist" has to be set to false. The game to train on can be adjusted in line 31.
