@@ -5,7 +5,8 @@
 \usepackage{amssymb}
 \usepackage{graphicx}
 \usepackage{placeins}
-\author{Bohnstingl Thomas, Scherr Franz}
+\usepackage[final]{pdfpages} 
+\author{Bohnstingl Thomas, Scherr Franz, Kopp Nikolaus}
 \title{Autonomously Learning Systems}
 \begin{document}
 \newcommand{\identity}{\mathbf{I}}
@@ -14,6 +15,9 @@
 \renewcommand{\th}{\theta}
 \newcommand{\dthi}{\frac{\partial}{\partial \th_i}}
 \newcommand{\dthj}{\frac{\partial}{\partial \th_j}}
+
+\includepdf[pages={1}]{./HW-coverpage-ALS.pdf} 
+
 \section{Deep Q-Learning}
 
 We implemented the Q-learning algorithm with experience replay as given in the practical slides. In order to further improve performance, we researched the internet and found a few hints that may help:
