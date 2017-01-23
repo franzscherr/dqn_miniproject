@@ -292,120 +292,121 @@ def prepro(observation, prev_observation):
     pbx, pby, poy = extract_rel(prev_observation)
     return np.array([bx, by, oy, pbx, pby, poy])
 
-# __________________________________________________________________________________________________
-# Train loop - Sample trajectories - Update Q-Function
-try:
-    experience = Experience(1300)
-    loss_list = []
-    reward_list = []
-    duration_list = []
-    sch = 40
-    render = False
+if False:
+    # __________________________________________________________________________________________________
+    # Train loop - Sample trajectories - Update Q-Function
+    try:
+        experience = Experience(1300)
+        loss_list = []
+        reward_list = []
+        duration_list = []
+        sch = 40
+        render = False
 
-    for i in range(params['n_train_iterations']):
-        observation = env.reset()
-        prev_observation = observation
-        # state = preprocess(prev_observation, observation)
-        state = prepro(observation, prev_observation)
-        total_loss = 0
-        total_reward = 0
-        total_action = 0
-
-        for j in range(params['max_episode_length']):
-            if params['eps'] > params['eps_min']:
-                params['eps'] -= (params['eps_max'] - params['eps_min']) / params['n_train_iterations']
-
-            if params['learning_rate'] > params['learning_rate_min']:
-                params['learning_rate'] *= params['learning_rate_decay']
-
-            q_values = q_learner.q_values(np.reshape(state, observation_shape), sess)
-            a_t = policy(q_values, strategy='epsgreedy', eps=params['eps'], observation=state)
-            # a_t = policy(q_values, strategy='boltzmann', temperature=params['temperature'])
-            total_action += a_t
-
+        for i in range(params['n_train_iterations']):
+            observation = env.reset()
             prev_observation = observation
-            if render:
-                env.render()
+            # state = preprocess(prev_observation, observation)
+            state = prepro(observation, prev_observation)
+            total_loss = 0
+            total_reward = 0
+            total_action = 0
 
-            observation, reward, done, _ = env.step(a_t)
-            total_reward += reward
+            for j in range(params['max_episode_length']):
+                if params['eps'] > params['eps_min']:
+                    params['eps'] -= (params['eps_max'] - params['eps_min']) / params['n_train_iterations']
 
-            # new_state = preprocess(prev_observation, observation)
-            new_state = prepro(observation, prev_observation)
+                if params['learning_rate'] > params['learning_rate_min']:
+                    params['learning_rate'] *= params['learning_rate_decay']
 
-            experience.add(tuple([state, a_t, reward, new_state, done]))
+                q_values = q_learner.q_values(np.reshape(state, observation_shape), sess)
+                a_t = policy(q_values, strategy='epsgreedy', eps=params['eps'], observation=state)
+                # a_t = policy(q_values, strategy='boltzmann', temperature=params['temperature'])
+                total_action += a_t
 
-            if (i + j) > 32:
-                state_batch, action_batch, reward_batch, next_state_batch, is_done_batch = \
-                        experience.sample_batch(params['n_batch'])
+                prev_observation = observation
+                if render:
+                    env.render()
 
-                # Needs to be improved, suggests the training of this sample batch
-                _, loss, action_one_hot, y, q, q_target, diff, expected, value, advantage = sess.run([
-                    train_step, q_learner.loss, q_learner.action_one_hot, q_learner.y, 
-                    q_learner.q_out, q_learner.t_q_out, q_learner.diff, q_learner.expected,
-                    q_learner.value, q_learner.advantage], feed_dict={
-                    keep_holder: params['keep_prob'],
-                    learning_rate_holder: params['learning_rate'],
-                    q_learner.state_holder: state_batch,
-                    q_learner.action_holder: action_batch,
-                    q_learner.reward_holder: reward_batch,
-                    q_learner.next_state_holder: next_state_batch,
-                    q_learner.is_done_holder: is_done_batch})
-                total_loss += loss
-                elog.add_after_sample(loss, params['learning_rate'], params['temperature'])
+                observation, reward, done, _ = env.step(a_t)
+                total_reward += reward
 
-            if render and done:
-                render = False
-                pdb.set_trace()
-            if done and i > sch:
-                pdb.set_trace()
+                # new_state = preprocess(prev_observation, observation)
+                new_state = prepro(observation, prev_observation)
 
-            state = new_state
+                experience.add(tuple([state, a_t, reward, new_state, done]))
 
-            if (i + j) % params['update_frequency'] == 0:
-                # update target Q function weights
-                q_learner.run_target_q_update(sess)
+                if (i + j) > 32:
+                    state_batch, action_batch, reward_batch, next_state_batch, is_done_batch = \
+                            experience.sample_batch(params['n_batch'])
 
-            if done:
-                break
-        if params['keep_prob'] < params['keep_prob_end']:
-            params['keep_prob'] += (params['keep_prob_end'] - params['keep_prob_begin']) / params['n_train_iterations']
-        # if params['temperature'] > params['temperature_end']: 
-            # params['temperature'] -= (params['temperature_begin'] - params['temperature_end']) / params['n_train_iterations']
-            # if params['temperature'] < params['temperature_end']:
-                # params['temperature'] = params['temperature_end']
-        elog.add_after_trajectory(total_reward, j + 1)
+                    # Needs to be improved, suggests the training of this sample batch
+                    _, loss, action_one_hot, y, q, q_target, diff, expected, value, advantage = sess.run([
+                        train_step, q_learner.loss, q_learner.action_one_hot, q_learner.y, 
+                        q_learner.q_out, q_learner.t_q_out, q_learner.diff, q_learner.expected,
+                        q_learner.value, q_learner.advantage], feed_dict={
+                        keep_holder: params['keep_prob'],
+                        learning_rate_holder: params['learning_rate'],
+                        q_learner.state_holder: state_batch,
+                        q_learner.action_holder: action_batch,
+                        q_learner.reward_holder: reward_batch,
+                        q_learner.next_state_holder: next_state_batch,
+                        q_learner.is_done_holder: is_done_batch})
+                    total_loss += loss
+                    elog.add_after_sample(loss, params['learning_rate'], params['temperature'])
 
-        total_loss /= j
-        total_action /= j
-        reward_list.append(total_reward)
-        duration_list.append(j)
-        loss_list.append(total_loss)
-        if i % params['print_interval'] == 0:
-            print('loss {:8g} +/- {:4.2f} | reward {:8.2f} +/- {:4.2f} | duration {:5f} +/- {:3f}'
-                    .format(np.mean(loss_list), np.sqrt(np.var(loss_list)), np.mean(reward_list),
-                        np.sqrt(np.var(reward_list)), np.mean(duration_list), np.sqrt(np.var(duration_list))))
-            # print('average loss in trajectory {:5d}: {:10g} | reward: {} | avg action: {}'
-                    # .format(i, total_loss, total_reward, total_action))
-            loss_list = []
-            duration_list = []
-            reward_list = []
-            if file_name:
-                with open(file_name, 'wb') as f:
-                    model.save_weights(f, sess)
-            with open(session_path + '/config.pkl', 'wb') as f:
-                pl.dump(params, f)
-            with open(session_path + '/log.pkl', 'wb') as f:
-                elog.save(f)
-except KeyboardInterrupt:
-    # save parameters
-    if file_name:
-        with open(file_name, 'wb') as f:
-            model.save_weights(f, sess)
-    with open(session_path + '/config.pkl', 'wb') as f:
-        pl.dump(params, f)
-    with open(session_path + '/log.pkl', 'wb') as f:
-        elog.save(f)
+                if render and done:
+                    render = False
+                    pdb.set_trace()
+                if done and i > sch:
+                    pdb.set_trace()
+
+                state = new_state
+
+                if (i + j) % params['update_frequency'] == 0:
+                    # update target Q function weights
+                    q_learner.run_target_q_update(sess)
+
+                if done:
+                    break
+            if params['keep_prob'] < params['keep_prob_end']:
+                params['keep_prob'] += (params['keep_prob_end'] - params['keep_prob_begin']) / params['n_train_iterations']
+            # if params['temperature'] > params['temperature_end']: 
+                # params['temperature'] -= (params['temperature_begin'] - params['temperature_end']) / params['n_train_iterations']
+                # if params['temperature'] < params['temperature_end']:
+                    # params['temperature'] = params['temperature_end']
+            elog.add_after_trajectory(total_reward, j + 1)
+
+            total_loss /= j
+            total_action /= j
+            reward_list.append(total_reward)
+            duration_list.append(j)
+            loss_list.append(total_loss)
+            if i % params['print_interval'] == 0:
+                print('loss {:8g} +/- {:4.2f} | reward {:8.2f} +/- {:4.2f} | duration {:5f} +/- {:3f}'
+                        .format(np.mean(loss_list), np.sqrt(np.var(loss_list)), np.mean(reward_list),
+                            np.sqrt(np.var(reward_list)), np.mean(duration_list), np.sqrt(np.var(duration_list))))
+                # print('average loss in trajectory {:5d}: {:10g} | reward: {} | avg action: {}'
+                        # .format(i, total_loss, total_reward, total_action))
+                loss_list = []
+                duration_list = []
+                reward_list = []
+                if file_name:
+                    with open(file_name, 'wb') as f:
+                        model.save_weights(f, sess)
+                with open(session_path + '/config.pkl', 'wb') as f:
+                    pl.dump(params, f)
+                with open(session_path + '/log.pkl', 'wb') as f:
+                    elog.save(f)
+    except KeyboardInterrupt:
+        # save parameters
+        if file_name:
+            with open(file_name, 'wb') as f:
+                model.save_weights(f, sess)
+        with open(session_path + '/config.pkl', 'wb') as f:
+            pl.dump(params, f)
+        with open(session_path + '/log.pkl', 'wb') as f:
+            elog.save(f)
 
 # __________________________________________________________________________________________________
 # Test loop

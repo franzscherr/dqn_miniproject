@@ -25,7 +25,9 @@ We implemented the Q-learning algorithm with experience replay as given in the p
 \end{itemize}
 
 \subsection{Double Q-learning}
-At first, Double Q-learning is the strategy to keep two seperate Q networks to decouple action selection and target Q estimation. This helps to prevent the case that Q values are overestimated. This improvement is already included in the algorithm given in the practical slides.
+At first, Double Q-learning is the strategy to keep two seperate Q networks to decouple action selection and target Q estimation. This helps to prevent the case that Q values are overestimated. This problem arises mainly in a noisy environment as the target Q values are maximum predictions. \\
+\\
+This improvement is already included in the algorithm given in the practical slides.
 
 \subsection{Duelling Q-learning}
 A viable approach to improve the Q-learning algorithm is to split up the network in an advantage and a value part. That is:
@@ -34,6 +36,8 @@ A viable approach to improve the Q-learning algorithm is to split up the network
 \end{align*}
 
 The essential point is that the whole network in its entirety will generalize the value of a specific state better and learns the actual advantage of the actions in a different part. This somehow brings the Q-network closer to a policy agent in the sense that the action distribution is located in the advantage part.
+
+We tried this setting and compared it to the regular Q-network. Although big improvements were not to be observed, the value and advantage network performed slightly better. However, we cannot conclude that this was only due to the different approach, because the network is by design a bit more complex. Please see the section Pong for comparison.
 
 Moreover, this also enables us to implement a model based learning technique additionally as we already have a value estimation. For example, consider Markov Tree Search (MCTS). We could readily approach this extension if we have an estimation for the value of a state. Still we would need a part to predict state transitions. However, we did not have sufficient time for this and might consider to poke around with this in the future.
 
@@ -65,23 +69,17 @@ After detailed analysis of the issue a problem with the supervised part was dete
 After the problem with the preprocessing was solved the there was not enough time to train the network on the pong game.
 
 \subsection{Observations and Conclusions}
-There were simply too many things to try out and too limited resources.
+There were simply too many things to try out and too limited resources and time respectively. However, we still want to continue on this type of projects.
 
 \subsubsection{Comparing to Policy Gradient in Assignment 3}
-The most important conclusion we take from the mini project is that learning Q values of state and actions is much more complicated than learning a policy out from the observations. We suppose that this is because the Q network learns to predict the value of state and actions and therefore tries to model the environment in its network. As opposed to the policy agent, in this case we directly address to learn what actions where appropriate to be taken through a trajectory.
-
-Thus, we had a thinking error that a network about the same size like in assignment 3 would be sufficient. Instead, the Q-network needed a lot more layers to provide reasonable results.
-
-It also has to feature a high nonlinearity which is only achieved through a deep structure. Consider the environment Pong. Suppose the ball is in immediate vicinity of the players racket. Is the ball right about to hit the racket, the network needs to predict a high value and is it about to almost hit the racket but actually does not, the network needs to predict a reward of -1 in this case. This is just a matter of small changes in the observations that have to lead to a very different value.
-
-A policy network learns the probability distribution of actions in this state. Still this distribution has to shift if the ball is about to miss the racket but we would expect that this would not be a similar hard edge as with the Q network.
+The most important conclusion we take from the mini project is that learning Q values of state and actions is intuitively more complicated than learning a policy out from the observations. We suppose that this is because the Q network learns to predict the value of state and actions and therefore tries to model the environment in its network. As opposed to the policy agent, in this case we directly address to learn what actions where appropriate to be taken throughout a trajectory.
 
 \subsubsection{Preprocessing}
-Since we had a really hard time to train the Q-network for the Pong environment using the preprocessing given in assignment 3, we investigated the preprocessing functions closer. We found that the coordinates are not correct anymore if the ball surpasses a racket. This is because the region to scan for the ball is always in the inner field not considering the outer bands behind the rackets.
+Since we had a really hard time to train the Q-network for the Pong environment, we investigated the preprocessing functions closer. We found that the coordinates are not correct anymore if the ball surpasses a racket. This is because the region to scan for the ball is always in the inner field not considering the outer bands behind the rackets.
 
 We proceeded to implement another preprocessing function that correctly identifies the balls position also if it is behind the rackets. And indeed, we saw a major improvement for the trajectory durations and rewards.
 
-The explanation behind this is that Q-learning updates the model as it sees rewards and propagates them back using the experience buffer that includes nonreward transitions. Because the rewards were given only in the last parts of the trajectory when the observations were not correct anymore, the rewards led the Q-network in the wrong direction. In contrast to policy gradient, the rewards are considered throughout the whole trajectory and associated to what actions the agent has taken throughout it.
+The explanation behind this is that Q-learning updates the model as it sees rewards and propagates them back using the experience buffer that includes nonreward transitions. The information enters the network as the agent receives rewards. Because the rewards were given only in the last parts of the trajectory when the observations were not correct anymore, the rewards led the Q-network in the wrong direction. In contrast to policy gradient, the rewards are considered throughout the whole trajectory and associated to what actions the agent has taken throughout it.
 
 \subsection{Results}
 
@@ -96,7 +94,7 @@ Of course this is the simplest environment. And it turned out that we are indeed
 \end{figure}
 
 \FloatBarrier
-\subsubsection{Pong}
+\subsubsection{Pong misleading preprocessing}
 As said, the preprocessing was a big obstacle for the Q-network to overcome. In Figure~\ref{fig:deepq_pong_duration} we see that the network was not able to capture the environment. The architecture of the corresponding Q-network was deeper one, because we observed that it slightly improved the rewards. This might be due to the fact that a deeper structure realized in some sense that the observations when the rewards were given were not associated to the actual ball positions anymore.
 
 The structure of the network is also given in Figure~\ref{fig:deepq_relu_structure}. It consisted of several layers of ReLU activated neurons because we came to the conclusion that the sharp transitions in Q-values depending on the position relative to the racket fits the ReLU edge very well.
@@ -116,15 +114,34 @@ The structure of the network is also given in Figure~\ref{fig:deepq_relu_structu
 \end{figure}
 
 \FloatBarrier
+\subsubsection{Pong improved preprocessing}
 
-The situation was quite different with the improved feature extraction. We again trained a model with the same configuration as above and experienced a much better reward within less iterations. Consider Figure~\ref{fig:deep_corrected} for the rewards and durations.
+The situation was quite different with the improved feature extraction. We again trained a model with the same configuration as above and experienced a much better reward within less iterations. 
+However, we suppose that in this case the structure is again to complicated for the environment if we got the features right.
+So we decided to use smaller structures again and we got reasonable results trying both the advantage value network and the plain Q-network with an epsilon greedy policy.
+
+The used network structures are given in Figure~\ref{fig:pong_comparison}.
 
 \begin{figure}[!ht]
   \centering
-  \includegraphics[width=1\textwidth]{./figures/relu_corrected.png}
-  \caption{Duration and rewards with the same network as given in Figure~\ref{fig:deepq_relu_structure} with corrected features.}
-  \label{fig:deep_corrected}
+  \includegraphics[width=.7\textwidth]{./figures/structure.png}
+  \caption{Network structures: Left without value advantage part, Right with.}
+  \label{fig:pong_comparison}
 \end{figure}
 
-However, we suppose that in this case the structure is again to complicated for the environment if we got the features right.
+We were able to conclude that the network with advantage part performed slightly better. However as stated above, there are also more parameters. In Figure~\ref{fig:no_advantage} there are the rewards and durations without advantage separation plotted and in Figure~\ref{fig:with_advantage} there is a seperate value and advantage part.
+
+\begin{figure}[!ht]
+  \centering
+  \includegraphics[width=1\textwidth]{./figures/no_advantage.png}
+  \caption{Rewards and durations for the Q-network.}
+  \label{fig:no_advantage}
+\end{figure}
+
+\begin{figure}[!ht]
+  \centering
+  \includegraphics[width=1\textwidth]{./figures/tanh_corrected_features.png}
+  \caption{Rewards and durations for the separated network.}
+  \label{fig:with_advantage}
+\end{figure}
 \end{document}
