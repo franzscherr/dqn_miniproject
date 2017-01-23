@@ -1,0 +1,8 @@
+To be able to learn from ATARI environments with images as output, a convolutional neural network was implemented. The model was built generic to be able to test various different configurations. The is made of several convolutional layers from the input followed by one or more fully connected layers. ADAM was picked as the training algorithm since it was promising throughout the other assignments. Furhtermore experience replay and batch training were used to improve learning. 
+
+After many unsucessfull trials to train the network on the game pong, the implementation was tested on the MNist data set as proposed in some tensorflow tutorials. A similar network configuration like in the MNist tutorial revealed also 99.2\% accuracy.
+
+
+
+Achieved \% accuracy and compared to the reference implementation from tensorflow used .... 
+This was a proof of concept for the structure, but nevertheless the network didn't achieved good results on ATARI games.  
