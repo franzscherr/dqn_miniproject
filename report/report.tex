@@ -49,6 +49,21 @@ However, one possibility would be to keep a moving window of the selected action
 \subsubsection{Exploiting Uncertainty in Action Selection}
 It is also conceivable to obtain a better performance if we are able to measure the uncertainty in action selection. Suppose we do, we could simply pick the action that is best within its uncertainty. By playing this action more times, the uncertainty will shrinken and we finally end up exploring a different action that is now more promising within its uncertainty. However, we do not use a probabilistic distribution of network weights but we could do something like that by using dropout. We would sample Q-values several times and compute mean and variance. Then select the action with highest mean plus standard deviation.
 
+\subsection{Convolutional neural network}
+To be able to learn from ATARI environments with images as output, a convolutional neural network was implemented. The model was built generic to be able to test various different configurations. The is made of several convolutional layers from the input followed by one or more fully connected layers. Different network configurations with various numbers of filters and filtersizes were tested.
+After many unsucessfull trials to train the network on the game pong, the implementation was tested on the MNist data set as proposed in some tensorflow tutorials. A similar network configuration like in the MNist tutorial revealed 99.2\% accuracy.\\
+
+\noindent The configuration for this result was:
+\begin{itemize}
+\item Two convolutional layers with a filtersize of 5x5
+\item The extracted features are 32 and 64
+\item Three fully connected layers with 64, 30 and 6 neurons
+\end{itemize} 
+
+\noindent After this proof of concept, the same network was trained under supervised conditions for the game pong. Also with this supervised approach the network didn't achieved good results on the ATARI game. Also variations of the network configuration above didn't perform well.\\
+After detailed analysis of the issue a problem with the supervised part was detected which will also be discussed in the following section.\\
+After the problem with the preprocessing was solved the there was not enough time to train the network on the pong game.
+
 \subsection{Observations and Conclusions}
 There were simply too many things to try out and too limited resources.
 
