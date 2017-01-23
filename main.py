@@ -11,17 +11,19 @@ import sys
 from q_learner import QLearner
 from fully_connected import FCPart
 from model import Model
-from pong_tools import prepro
+#from pong_tools import prepro
 from convolutional_model import ConvolutionalModel
+from tensorflow.examples.tutorials.mnist import input_data
+mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
 
 # __________________________________________________________________________________________________
 # Learning parameters
 n_train_iterations      = 1000
 n_test_iterations       = 4
-n_batch                 = 4
+n_batch                 = 1
 update_frequency        = 32
-max_episode_length      = 5000
-learning_rate           = 0.002
+max_episode_length      = 700
+learning_rate           = 0.005
 learning_rate_decay     = 0.993
 learning_rate_min       = 4e-4
 gamma                   = 0.98
@@ -53,7 +55,8 @@ observation_shape[0] = 1
 
 # __________________________________________________________________________________________________
 # Model
-file_name = 'pong_prepro' + str(sys.argv[1]) + '.npz'
+file_name = 'pong_prepro.npz'
+#file_name = 'pong_preproMNist.npz'
 
 # model_args = ([5,5], [4,4], [4,4], [30, n_actions], train_observation_shape, False, file_name)
 # model = ConvolutionalModel(*model_args)
@@ -115,12 +118,24 @@ target_model_args = ([30, 60, n_actions + 1], keep_holder, train_observation_sha
 
 environmentObservationPlaceHolder = tf.placeholder(dtype=tf.float32, shape=(n_batch, 210, 160, 6))
 expectedFeatureOutput = tf.placeholder(dtype=tf.float32, shape=(n_batch, 6))
-model_args = (n_batch, [4, 4], [20, 10], (2, 2), [40, 6], None, False, file_name)
+x = tf.placeholder(tf.float32, shape=[None, 784])
+x_image = tf.reshape(x, [-1,28,28,1])
+#expectedFeatureOutput = tf.placeholder(dtype=tf.float32, shape=(n_batch, 10))
+model_args = (n_batch, [5, 5, 5], [6, 12, 32], (2, 2), [60, 15, 6], None, False, file_name)
 model = ConvolutionalModel(*model_args)
 q_out = model.add_to_graph(environmentObservationPlaceHolder)
+#q_out = model.add_to_graph(x_image)
+
 error = tf.reduce_sum((expectedFeatureOutput - q_out) ** 2)
 train = tf.train.AdamOptimizer(learning_rate).minimize(error)
 #train = expectedFeatureOutput - tf.reshape(q_out, [-1])
+
+keep_prob = tf.placeholder(tf.float32)
+y_ = tf.placeholder(tf.float32, shape=[None, 10])
+cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(q_out, y_))
+train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
+correct_prediction = tf.equal(tf.argmax(q_out,1), tf.argmax(y_,1))
+accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
 # model = SimpleModel(*model_args)
 # target_model = SimpleModel(*model_args)
@@ -191,7 +206,23 @@ class Experience:
 #    else:
 #        return np.random.randint(n_actions)
 
-# __________________________________________________________________________________________________
+#
+
+def extract(observation):
+    crop = np.mean(observation, axis=2)[34:194, :]
+    ball = np.unravel_index(np.argmax(np.logical_and(crop > 235, crop < 237)), crop.shape)
+    self = np.unravel_index(np.argmax(np.logical_and(crop > 123, crop < 124)), crop.shape)
+    opp = np.unravel_index(np.argmax(np.logical_and(crop > 138, crop < 140)), crop.shape)
+    return ball, self, opp
+
+def extract_rel(observation):
+    ball, self, opp = extract(observation)
+    return ball[1] - self[1], ball[0] - self[0], opp[0] - self[0]
+
+def prepro(observation, prev_observation):
+    bx, by, oy = extract_rel(observation)
+    pbx, pby, poy = extract_rel(prev_observation)
+    return np.array([bx, by, oy, pbx, pby, poy])
 # Train loop - Sample trajectories - Update Q-Function
 try:
     experience = Experience(5000)
@@ -204,6 +235,10 @@ try:
 
     for i in range(n_train_iterations):
         observation = env.reset()
+        prev_observation = observation
+        
+        for j in range(0, 50):
+            observation, _, _, _ = env.step(np.random.randint(n_actions))  
         prev_observation = observation
 
         # state = preprocess(prev_observation, observation)
@@ -261,7 +296,7 @@ try:
             #print(np.reshape(sess.run(q_out, feed_dict={environmentObservationPlaceHolder:appendedObservation}), -1))
 
             #for z in range(0, 10):
-            networkOutput = np.reshape(sess.run(q_out, feed_dict={environmentObservationPlaceHolder:appendedObservation}), -1)
+#            networkOutput = np.reshape(sess.run(q_out, #feed_dict={environmentObservationPlaceHolder:appendedObservation}), -1)
             #print(networkOutput)
             #print(new_stateBatch)
 
@@ -275,12 +310,25 @@ environmentObservationPlaceHolder:appendedObservation})
 
             #print(total_loss)
             state = new_state
+            
+#            batch = mnist.train.next_batch(50)
+#            if j%100 == 0:
+#                train_accuracy = sess.run(accuracy, feed_dict={
+#                    x:batch[0], y_: batch[1], keep_prob: 1.0})
+#                print("step {:d}, training accuracy {:6.4f}".format(j, train_accuracy))
+                
+#            test_accuracy = sess.run(accuracy, feed_dict={
+#                x:mnist.test.images, y_: mnist.test.labels, keep_prob: 1.0})
+#            print("test accuracy {:6.4f}".format(test_accuracy))
+#            input()
+ #           sess.run(train_step, feed_dict={x: batch[0], y_: batch[1], keep_prob: 0.5})
+                
 
             #print('loss {:8g}'.format(loss))
             
-            if file_name and (j % 100) == 0:
-                with open(file_name, 'wb') as f:
-                    model.save_weights(f, sess)
+#            if file_name and (j % 100) == 0:
+#                with open(file_name, 'wb') as f:
+#                    model.save_weights(f, sess)
 
             #if (i + j) % update_frequency == 0:
                 # update target Q function weights
@@ -312,6 +360,7 @@ environmentObservationPlaceHolder:appendedObservation})
                 model.save_weights(f, sess)
 
 except KeyboardInterrupt:
+    pass
     # save parameters
     if file_name:
         with open(file_name, 'wb') as f:
@@ -319,32 +368,3 @@ except KeyboardInterrupt:
 
 
 aaaaaa
-# __________________________________________________________________________________________________
-# Test loop
-try:
-    for i in range(n_test_iterations):
-        observation = env.reset()
-        prev_observation = observation
-        # state = preprocess(prev_observation, observation)
-        state = prepro(observation, prev_observation)
-
-        for j in range(max_episode_length):
-            env.render()
-
-            q_values = q_learner.q_values(np.reshape(state, observation_shape), sess)
-            a_t = policy(q_values, strategy='epsgreedy', eps=0)
-
-            prev_observation = observation
-
-            observation, reward, done, _ = env.step(a_t)
-            # new_state = preprocess(prev_observation, observation)
-            new_state = prepro(observation, prev_observation)
-
-            state = new_state
-
-            if done:
-                break
-except KeyboardInterrupt:
-    pass
-
-sess.close()
